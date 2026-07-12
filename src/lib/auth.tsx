@@ -106,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(!AUTH_ENABLED);
   const [error, setError] = useState<string | null>(null);
   const initialized = useRef(false);
+  const syncPrompted = useRef(false);
 
   const persist = (u: AuthUser | null) => {
     if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
@@ -151,20 +152,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Keep Firestore sync tied to Firebase Auth (persists across reloads).
   useEffect(() => {
-    if (!SYNC_ENABLED) return;
+    if (!SYNC_ENABLED || !ready) return;
     const auth = getFirebaseAuth();
     if (!auth) return;
     return onAuthStateChanged(auth, (fbUser) => {
       const email = fbUser?.email?.toLowerCase() ?? null;
       if (email && isAllowedEmail(email)) {
+        syncPrompted.current = false;
         setWriteHook(() => scheduleSyncPush(email));
         startSync(email);
       } else {
         setWriteHook(null);
         stopSync();
+        // GIS session restored from localStorage but Firebase not linked yet —
+        // prompt once for a fresh ID token (sign-out + sign-in also works).
+        if (user && !syncPrompted.current && window.google?.accounts?.id?.prompt) {
+          syncPrompted.current = true;
+          window.google.accounts.id.prompt();
+        }
       }
     });
-  }, []);
+  }, [ready, user]);
 
   const renderButton = useCallback((el: HTMLElement) => {
     if (!window.google?.accounts?.id) return;
