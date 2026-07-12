@@ -30,12 +30,12 @@ export function isAllowedEmail(email: string | undefined | null): boolean {
 // web-app config below or provide via VITE_FIREBASE_* env vars at build time.
 // While `projectId` is empty, cloud sync is disabled and progress stays local.
 const CONFIGURED_FIREBASE = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
+  apiKey: "AIzaSyB6m1_m9eCBm8PphsFQKhy7IMYX_u1jMYo",
+  authDomain: "sat-web-9bd1e.firebaseapp.com",
+  projectId: "sat-web-9bd1e",
+  storageBucket: "sat-web-9bd1e.firebasestorage.app",
+  messagingSenderId: "228407528342",
+  appId: "1:228407528342:web:74efef12f0d7519ae42bb7",
 };
 
 export const FIREBASE_CONFIG = {
