@@ -12,7 +12,7 @@ const LABEL: Record<SyncStatus, string> = {
 };
 
 export default function SyncStatus() {
-  const { user, connectCloudSync } = useAuth();
+  const { user, syncError, connectCloudSync } = useAuth();
   const [status, setStatus] = useState<SyncStatus>(getSyncStatus());
 
   useEffect(() => onSyncStatus(setStatus), []);
@@ -21,22 +21,23 @@ export default function SyncStatus() {
 
   const icon = status === "synced" ? "☁" : status === "error" ? "⚠" : "↻";
   const needsConnect = status === "off" || status === "error";
+  const title = syncError ?? "Cloud progress sync across your devices";
 
   if (needsConnect) {
     return (
       <button
         type="button"
-        className={`sync-chip ${status === "error" ? "error" : "connecting"}`}
-        title="Re-authenticate with Google to enable cloud sync"
+        className={`sync-chip ${status === "error" || syncError ? "error" : "connecting"}`}
+        title={title}
         onClick={connectCloudSync}
       >
-        {icon} {LABEL[status]} — tap to connect
+        {icon} {syncError ? "Sync setup needed" : `${LABEL[status]} — tap to connect`}
       </button>
     );
   }
 
   return (
-    <span className={`sync-chip ${status}`} title="Cloud progress sync across your devices">
+    <span className={`sync-chip ${status}`} title={title}>
       {icon} {LABEL[status]}
     </span>
   );

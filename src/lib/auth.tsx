@@ -16,9 +16,11 @@ interface AuthState {
   enabled: boolean;
   ready: boolean;
   user: AuthUser | null;
+  /** Sign-in / account gate errors only (never Firebase sync errors). */
   error: string | null;
+  /** Cloud sync connection errors (shown in the sync chip, not on the login screen). */
+  syncError: string | null;
   renderButton: (el: HTMLElement) => void;
-  /** Re-run Google sign-in to link Firebase for cloud sync (GIS, not popup). */
   connectCloudSync: () => void;
   signOut: () => void;
 }
@@ -49,7 +51,6 @@ function decodeJwt(token: string): Record<string, any> | null {
   }
 }
 
-/** Client-side validation of a Google ID token (soft gate; see README security note). */
 function validate(claims: Record<string, any> | null): AuthUser | { error: string } {
   if (!claims) return { error: "Could not read the sign-in response." };
   const validIss = claims.iss === "accounts.google.com" || claims.iss === "https://accounts.google.com";
@@ -77,6 +78,21 @@ function fbUserToAuthUser(fb: User): AuthUser | null {
     picture: fb.photoURL ?? "",
     exp: Math.floor(Date.now() / 1000) + 3600,
   };
+}
+
+function syncHint(code: string): string {
+  if (code === "auth/internal-error") {
+    return (
+      "Cloud sync setup incomplete. In Google Cloud (project sat-web-9bd1e): " +
+      "enable Identity Toolkit API, and ensure your Firebase API key allows " +
+      "https://rrjuneja.github.io/* as an HTTP referrer. " +
+      "Also confirm Firebase → Authentication → Google is enabled."
+    );
+  }
+  if (code === "auth/invalid-credential" || code === "auth/credential-already-in-use") {
+    return "Cloud sync could not verify your Google sign-in. Sign out, wait a moment, and sign in again.";
+  }
+  return `Cloud sync error (${code}). You can still practice — progress stays on this device until sync connects.`;
 }
 
 function loadGis(): Promise<void> {
@@ -117,8 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(restoreSession);
   const [ready, setReady] = useState(!AUTH_ENABLED);
   const [error, setError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const initialized = useRef(false);
-  const firebaseLinked = useRef(false);
 
   const persist = (u: AuthUser | null) => {
     if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
@@ -130,23 +146,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth || !idToken) return;
     try {
       await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
-      firebaseLinked.current = true;
-      setError(null);
+      setSyncError(null);
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code ?? "";
       console.warn("Firebase link failed", e);
-      setError(
-        code
-          ? `Cloud sync could not connect (${code}). Check Firebase Google sign-in is enabled.`
-          : "Cloud sync could not connect. Try signing out and back in.",
-      );
+      setSyncError(code ? syncHint(code) : "Cloud sync could not connect. Progress stays on this device for now.");
     }
   }, []);
 
   const connectCloudSync = useCallback(() => {
-    setError(null);
+    setSyncError(null);
     if (!window.google?.accounts?.id) {
-      setError("Google sign-in is still loading — try again in a moment.");
+      setSyncError("Google sign-in is still loading — try again in a moment.");
       return;
     }
     window.google.accounts.id.prompt();
@@ -163,15 +174,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.google?.accounts?.id?.disableAutoSelect?.();
       } else {
         setError(null);
+        setSyncError(null);
         setUser(result);
         persist(result);
+        // Link Firebase in the background — login must succeed even if this fails.
         if (SYNC_ENABLED && idToken) void linkFirebase(idToken);
       }
     },
     [linkFirebase],
   );
 
-  // Google Identity Services — used for all sign-in (works reliably on GitHub Pages).
   useEffect(() => {
     if (!AUTH_ENABLED || initialized.current) return;
     initialized.current = true;
@@ -183,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           callback: handleCredential,
           auto_select: true,
           cancel_on_tap_outside: false,
-          use_fedcm_for_prompt: true,
+          use_fedcm_for_prompt: false,
         });
         setReady(true);
       })
@@ -193,7 +205,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [handleCredential]);
 
-  // Firestore sync follows Firebase Auth (linked via GIS ID token above).
   useEffect(() => {
     if (!SYNC_ENABLED) return;
     const auth = getFirebaseAuth();
@@ -206,14 +217,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           void fbSignOut(auth);
           return;
         }
-        firebaseLinked.current = true;
-        setError(null);
+        setSyncError(null);
         setUser(u);
         persist(u);
         setWriteHook(() => scheduleSyncPush(u.email));
         startSync(u.email);
       } else {
-        firebaseLinked.current = false;
         setWriteHook(null);
         stopSync();
       }
@@ -239,15 +248,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (auth) void fbSignOut(auth);
     stopSync();
     setWriteHook(null);
-    firebaseLinked.current = false;
     setUser(null);
     setError(null);
+    setSyncError(null);
     persist(null);
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ enabled: AUTH_ENABLED, ready, user, error, renderButton, connectCloudSync, signOut }}
+      value={{ enabled: AUTH_ENABLED, ready, user, error, syncError, renderButton, connectCloudSync, signOut }}
     >
       {children}
     </AuthContext.Provider>

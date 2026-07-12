@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { Settings as SettingsType } from "../types";
 import { applyTheme } from "../lib/hooks";
 import { DEFAULT_SETTINGS, exportAll, getSettings, importAll, resetAll, saveSettings } from "../lib/store";
+import { useAuth } from "../lib/auth";
 import { Loader } from "../components/ui";
 
 export default function Settings() {
+  const { syncError } = useAuth();
   const [settings, setSettings] = useState<SettingsType | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -92,6 +94,11 @@ export default function Settings() {
           Progress (sessions, attempts, saved questions) syncs in real time across all signed-in devices when cloud
           sync is configured. Theme and practice defaults stay on this device. You can still export/import a JSON backup.
         </p>
+        {syncError && (
+          <div className="banner warn" style={{ marginBottom: 12 }}>
+            {syncError}
+          </div>
+        )}
         <div className="row wrap" style={{ gap: 10 }}>
           <button className="btn" onClick={doExport}>Export backup</button>
           <button className="btn" onClick={() => fileRef.current?.click()}>Import backup</button>
