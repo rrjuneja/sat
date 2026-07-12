@@ -154,25 +154,89 @@ def parse_metadata(words):
     return {"domain": clean(join("Domain")), "skill": clean(join("Skill")), "difficulty": difficulty}, q_head_y
 
 
+# A student-produced-response answer: integer, decimal, or fraction (optional
+# leading minus). Used to pull grid-in answers out of "Correct Answer:" lines and
+# rationale phrasing.
+NUM_RE = re.compile(r"^-?\d+(?:\.\d+)?(?:/-?\d+(?:\.\d+)?)?$")
+
+
+def split_nums(s):
+    """Split a free-text answer list into normalised numeric tokens."""
+    s = (s or "").replace("\u2212", "-")  # unicode minus -> ASCII
+    out = []
+    for part in re.split(r",|\band\b|\bor\b", s):
+        p = part.strip().rstrip(".").strip()
+        if NUM_RE.match(p) and p not in out:
+            out.append(p)
+    return out
+
+
+def grid_from_rationale(text):
+    """Recover acceptable grid-in answers when the value is only in an image.
+
+    The bank still spells the answer out in prose, e.g.
+      "... 7/6, 1.166, and 1.167 are examples of ways to enter a correct answer."
+      "The correct answer is 5."
+    """
+    m = re.search(
+        r"(?:Note that\s+)?([-0-9/.\s,]+?(?:and\s+[-0-9/.\s,]+)?)\s+(?:is|are)\s+"
+        r"(?:an?\s+)?examples?\s+of\s+(?:a\s+)?ways?\s+to\s+enter\s+a\s+correct\s+answer",
+        text,
+        re.I,
+    )
+    if m:
+        toks = split_nums(m.group(1))
+        if toks:
+            return toks
+    m = re.search(r"[Tt]he correct answer is\s+([^.]+?)\.", text)
+    if m:
+        toks = split_nums(m.group(1))
+        if toks:
+            return toks
+    return []
+
+
+def answer_info(text):
+    """From the full text of a question (all pages), return (mc_letter, accepted).
+
+    `mc_letter` is set for multiple-choice; `accepted` is the list of acceptable
+    grid-in answers otherwise. Reading the whole page span is important because
+    the answer/rationale often spill onto continuation pages.
+    """
+    m = re.search(r"Correct Answer:\s*([A-D])\b", text)
+    if m:
+        return m.group(1), []
+    m = re.search(r"\bChoices?\s+([A-D])\s+is\s+correct\b", text, re.I)
+    if m:
+        return m.group(1), []
+
+    accepted = []
+    m = re.search(r"Correct Answer:\s*([^\n]+)", text)
+    if m:
+        accepted = split_nums(m.group(1))
+    if not accepted:
+        accepted = grid_from_rationale(text)
+    return None, accepted
+
+
 def split_sections(text):
     text = FOOTER_RE.sub("", text)
-    correct = None
-    m = re.search(r"Correct Answer:\s*(.+)", text)
-    if m:
-        correct = m.group(1).strip().splitlines()[0].strip()
+    # Drop the leading "Question ID: <hex>" so the \bQuestion\b search below finds
+    # the actual "Question" section header instead of matching inside "Question ID".
+    text = QID_RE.sub("", text, count=1)
 
     stem = ""
     qm = re.search(r"\bQuestion\b", text)
     if qm:
         after = text[qm.end():]
-        cut = re.search(r"\n\s*Answer\s*\n|Correct Answer:", after)
+        cut = re.search(r"\n\s*Answer\s*\n|Correct Answer:|\bRationale\b", after)
         stem = after[: cut.start()].strip() if cut else after.strip()
 
     choices = {}
     am = re.search(r"\n\s*Answer\s*\n", text)
     if am:
         seg = text[am.end():]
-        cm = re.search(r"Correct Answer:", seg)
+        cm = re.search(r"Correct Answer:|\bRationale\b", seg)
         seg = seg[: cm.start()] if cm else seg
         for cl in re.finditer(r"(?m)^\s*([A-D])\.\s*(.*)$", seg):
             choices[cl.group(1)] = clean(cl.group(2).strip())
@@ -181,7 +245,7 @@ def split_sections(text):
     rm = re.search(r"\bRationale\b", text)
     if rm:
         rationale = text[rm.end():].strip()
-    return clean(stem), choices, correct, clean(rationale)
+    return clean(stem), choices, clean(rationale)
 
 
 # ---- Worker (one open document per process) --------------------------------
@@ -196,6 +260,25 @@ def _init_worker(path, src):
     _SRC = src
 
 
+def find_answer_marker(pidx, end_page):
+    """Locate where the answer/rationale block begins within a question's page span.
+
+    Returns (page_index, y). "Correct Answer" is preferred (kept first so questions
+    that used to resolve on their primary page render byte-for-byte identically);
+    "Rationale" is a fallback for questions whose answer letter/value is an image
+    and therefore has no "Correct Answer:" text.
+    """
+    for k in range(pidx, end_page + 1):
+        rects = _DOC[k].search_for("Correct Answer")
+        if rects:
+            return k, rects[0].y0 - 2
+    for k in range(pidx, end_page + 1):
+        rects = _DOC[k].search_for("Rationale")
+        if rects:
+            return k, rects[0].y0 - 2
+    return None, None
+
+
 def process_question(task):
     pidx, qid, end_page = task
     page = _DOC[pidx]
@@ -204,29 +287,45 @@ def process_question(task):
     text = page.get_text()
     words = page.get_text("words")
     meta, q_head_y = parse_metadata(words)
-    stem, choices, correct, rationale = split_sections(text)
+    stem, choices, rationale = split_sections(text)
+
+    # Answer detection reads the whole page span: the answer/rationale (and its
+    # letter/value) frequently continue onto the next page(s).
+    full_text = FOOTER_RE.sub("", "\n".join(_DOC[k].get_text() for k in range(pidx, end_page + 1)))
+    mc_letter, accepted = answer_info(full_text)
+    is_mc = mc_letter is not None
+    qtype = "mc" if is_mc else "grid"
+
     if not is_math:
         for k in range(pidx + 1, end_page + 1):
             rationale += "\n" + clean(FOOTER_RE.sub("", _DOC[k].get_text()).strip())
         rationale = rationale.strip()
 
-    is_mc = bool(correct and re.fullmatch(r"[A-D]", correct))
-    qtype = "mc" if is_mc else "grid"
-    accepted = [] if is_mc else [a.strip() for a in (correct or "").split(",") if a.strip()]
-
-    ca_rects = page.search_for("Correct Answer")
+    ca_page_idx, answer_y = find_answer_marker(pidx, end_page)
     content_top = (q_head_y - 4) if q_head_y else page.rect.y0 + 40
-    answer_y = ca_rects[0].y0 - 2 if ca_rects else None
 
     has_q_img = False
-    if answer_y and answer_y > content_top:
+    qdest = os.path.join(IMG_Q, f"{qid}.webp")
+    if ca_page_idx == pidx and answer_y and answer_y > content_top:
+        # Single-page question: unchanged from the original render path.
         clip = fitz.Rect(page.rect.x0, content_top, page.rect.x1, answer_y)
-        has_q_img = render_webp(page, clip, WEBP_Q, os.path.join(IMG_Q, f"{qid}.webp")) > 0
+        has_q_img = render_webp(page, clip, WEBP_Q, qdest) > 0
+    elif ca_page_idx is not None and ca_page_idx > pidx:
+        # Question (often with image answer choices) spans pages: stitch the
+        # region from the top of the question down to the answer marker.
+        pieces = []
+        for k in range(pidx, ca_page_idx + 1):
+            pg = _DOC[k]
+            top = content_top if k == pidx else pg.rect.y0 + 4
+            bot = answer_y if k == ca_page_idx else pg.rect.y1 - FOOTER_BAND
+            pieces.append((pg, fitz.Rect(pg.rect.x0, top, pg.rect.x1, bot)))
+        has_q_img = stitch_webp(pieces, WEBP_Q, qdest) > 0
 
     has_r_img = False
-    if is_math and answer_y:
-        pieces = [(page, fitz.Rect(page.rect.x0, answer_y, page.rect.x1, page.rect.y1 - FOOTER_BAND))]
-        for k in range(pidx + 1, end_page + 1):
+    if is_math and answer_y is not None:
+        capage = _DOC[ca_page_idx]
+        pieces = [(capage, fitz.Rect(capage.rect.x0, answer_y, capage.rect.x1, capage.rect.y1 - FOOTER_BAND))]
+        for k in range(ca_page_idx + 1, end_page + 1):
             pg = _DOC[k]
             pieces.append((pg, fitz.Rect(pg.rect.x0, pg.rect.y0 + 4, pg.rect.x1, pg.rect.y1 - FOOTER_BAND)))
         has_r_img = stitch_webp(pieces, WEBP_R, os.path.join(IMG_R, f"{qid}.webp")) > 0
@@ -239,7 +338,7 @@ def process_question(task):
     }
     content_rec = {
         "id": qid, "stem": stem, "choices": choices, "type": qtype,
-        "correct": correct if is_mc else None, "accepted": accepted,
+        "correct": mc_letter if is_mc else None, "accepted": accepted,
         "rationale": "" if is_math else rationale, "qImg": has_q_img, "rImg": has_r_img,
     }
     return f'{_SRC["key"]}__{dslug}', index_rec, content_rec

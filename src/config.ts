@@ -24,3 +24,27 @@ export const AUTH_ENABLED = GOOGLE_CLIENT_ID.length > 0;
 export function isAllowedEmail(email: string | undefined | null): boolean {
   return !!email && ALLOWED_EMAILS.includes(email.toLowerCase());
 }
+
+// Firebase (Firestore) — public web config, safe to ship in client code.
+// Create a Firebase project, enable Google sign-in + Firestore, then paste the
+// web-app config below or provide via VITE_FIREBASE_* env vars at build time.
+// While `projectId` is empty, cloud sync is disabled and progress stays local.
+const CONFIGURED_FIREBASE = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: "",
+};
+
+export const FIREBASE_CONFIG = {
+  apiKey: ((import.meta.env.VITE_FIREBASE_API_KEY as string | undefined) || CONFIGURED_FIREBASE.apiKey).trim(),
+  authDomain: ((import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined) || CONFIGURED_FIREBASE.authDomain).trim(),
+  projectId: ((import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined) || CONFIGURED_FIREBASE.projectId).trim(),
+  storageBucket: ((import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined) || CONFIGURED_FIREBASE.storageBucket).trim(),
+  messagingSenderId: ((import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined) || CONFIGURED_FIREBASE.messagingSenderId).trim(),
+  appId: ((import.meta.env.VITE_FIREBASE_APP_ID as string | undefined) || CONFIGURED_FIREBASE.appId).trim(),
+};
+
+export const SYNC_ENABLED = FIREBASE_CONFIG.projectId.length > 0;

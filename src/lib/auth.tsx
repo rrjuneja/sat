@@ -1,5 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { AUTH_ENABLED, GOOGLE_CLIENT_ID, isAllowedEmail } from "../config";
+import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signOut as fbSignOut } from "firebase/auth";
+import { AUTH_ENABLED, GOOGLE_CLIENT_ID, SYNC_ENABLED, isAllowedEmail } from "../config";
+import { getFirebaseAuth } from "./firebase";
+import { setWriteHook } from "./store";
+import { scheduleSyncPush, startSync, stopSync } from "./sync";
 
 export interface AuthUser {
   email: string;
@@ -109,7 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const handleCredential = useCallback((response: { credential?: string }) => {
-    const result = validate(decodeJwt(response.credential ?? ""));
+    const idToken = response.credential ?? "";
+    const result = validate(decodeJwt(idToken));
     if ("error" in result) {
       setError(result.error);
       setUser(null);
@@ -119,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       setUser(result);
       persist(result);
+      if (SYNC_ENABLED && idToken) void linkFirebase(idToken);
     }
   }, []);
 
@@ -143,6 +149,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [handleCredential]);
 
+  // Keep Firestore sync tied to Firebase Auth (persists across reloads).
+  useEffect(() => {
+    if (!SYNC_ENABLED) return;
+    const auth = getFirebaseAuth();
+    if (!auth) return;
+    return onAuthStateChanged(auth, (fbUser) => {
+      const email = fbUser?.email?.toLowerCase() ?? null;
+      if (email && isAllowedEmail(email)) {
+        setWriteHook(() => scheduleSyncPush(email));
+        startSync(email);
+      } else {
+        setWriteHook(null);
+        stopSync();
+      }
+    });
+  }, []);
+
   const renderButton = useCallback((el: HTMLElement) => {
     if (!window.google?.accounts?.id) return;
     el.innerHTML = "";
@@ -158,6 +181,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     window.google?.accounts?.id?.disableAutoSelect?.();
+    const auth = getFirebaseAuth();
+    if (auth) void fbSignOut(auth);
+    stopSync();
+    setWriteHook(null);
     setUser(null);
     setError(null);
     persist(null);
@@ -174,4 +201,15 @@ export function useAuth(): AuthState {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
+}
+
+async function linkFirebase(idToken: string): Promise<void> {
+  const auth = getFirebaseAuth();
+  if (!auth) return;
+  try {
+    await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+    // onAuthStateChanged wires cloud sync once Firebase Auth is ready.
+  } catch (e) {
+    console.warn("Firebase sign-in failed — cloud sync unavailable.", e);
+  }
 }

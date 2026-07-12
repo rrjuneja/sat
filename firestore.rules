@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Shared progress for the whole family — all three allowed accounts read/write
+    // the same document. Deploy with: firebase deploy --only firestore:rules
+    match /appState/main {
+      allow read, write: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'rjuneja@gmail.com',
+          'rohanrjuneja@gmail.com',
+          'reemapuri2@gmail.com'
+        ];
+    }
+  }
+}

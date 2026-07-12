@@ -89,8 +89,8 @@ export default function Settings() {
       <div className="card">
         <h3>Your data</h3>
         <p className="muted small">
-          All progress is stored only on this device (in your browser). Nothing is ever uploaded. Back it up or move it
-          to another device using export/import.
+          Progress (sessions, attempts, saved questions) syncs in real time across all signed-in devices when cloud
+          sync is configured. Theme and practice defaults stay on this device. You can still export/import a JSON backup.
         </p>
         <div className="row wrap" style={{ gap: 10 }}>
           <button className="btn" onClick={doExport}>Export backup</button>

@@ -164,6 +164,16 @@ button { font-family: inherit; cursor: pointer; }
 .chip.hard { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--border)); }
 .chip.brand { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); }
 
+.sync-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 650;
+  color: var(--text-dim); border: 1px solid var(--border); background: var(--bg-elev-2);
+  margin-right: 8px;
+}
+.sync-chip.synced { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--border)); }
+.sync-chip.connecting, .sync-chip.syncing { color: var(--brand); }
+.sync-chip.error { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); }
+
 .tag { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); }
 
 /* ---- Stat tiles ---------------------------------------------------------- */

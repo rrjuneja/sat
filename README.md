@@ -20,14 +20,15 @@ stays hidden until you submit.
   "View source page" viewer.
 - **Explanations** after submitting (rendered solutions for Math, text for R&W).
 - **Review list** — save/mark questions and practice just those later.
-- **Private by design** — all progress is stored only on your device (IndexedDB). No
-  accounts, no servers, no tracking. Export/import your data as a JSON backup.
+- **Private by design** — progress syncs across your signed-in devices in real time (when
+  Firebase is configured). Theme/preferences stay local. Export/import JSON backup anytime.
 - **Mobile app** — responsive UI + installable PWA with offline support.
 
 ## Tech
 
 - React + TypeScript + Vite, `react-router-dom` (HashRouter for static hosting)
-- `localforage` (IndexedDB) for on-device progress
+- `localforage` (IndexedDB) for on-device progress cache
+- Firebase Firestore for optional real-time sync across devices (shared family progress)
 - `vite-plugin-pwa` (Workbox) for offline + install
 - Python + PyMuPDF + Pillow pipeline (`tools/build_data.py`) to parse the PDFs into
   `public/data/*.json` and render `public/img/**/*.webp`
@@ -56,6 +57,19 @@ python -m venv .venv
 .venv/Scripts/python -m pip install pymupdf Pillow
 .venv/Scripts/python tools/build_data.py     # writes public/data + public/img
 ```
+
+## Cloud sync (optional, cross-device)
+
+To sync progress in real time across computers/phones for the three allowed Google accounts:
+
+1. Create a [Firebase](https://console.firebase.google.com/) project.
+2. Enable **Authentication → Sign-in method → Google** (use the same OAuth client ID).
+3. Create a **Firestore** database (production mode).
+4. Deploy `firestore.rules` from this repo (`firebase deploy --only firestore:rules`).
+5. Copy the web app config into `src/config.ts` under `CONFIGURED_FIREBASE`, or set
+   `VITE_FIREBASE_*` env vars in GitHub Actions secrets for deploy builds.
+
+Until `projectId` is set, the app works offline with local-only progress (as before).
 
 ## Deployment
 

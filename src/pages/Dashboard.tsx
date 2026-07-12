@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { Attempt, Session, TestName } from "../types";
 import { useIndex } from "../lib/hooks";
 import { getAttempts, getSessions } from "../lib/store";
+import { onDataChanged } from "../lib/sync";
 import {
   activityByDay,
   currentStreak,
@@ -49,8 +50,12 @@ export default function Dashboard() {
   const [domainTest, setDomainTest] = useState<TestName | "all">("all");
 
   useEffect(() => {
-    getAttempts().then(setAttempts);
-    getSessions().then(setSessions);
+    const reload = () => {
+      getAttempts().then(setAttempts);
+      getSessions().then(setSessions);
+    };
+    reload();
+    return onDataChanged(reload);
   }, []);
 
   const latest = useMemo(() => latestPerQuestion(attempts ?? []), [attempts]);

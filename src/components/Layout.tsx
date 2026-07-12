@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
 import UserMenu from "./UserMenu";
+import SyncStatus from "./SyncStatus";
 
 const links = [
   { to: "/", label: "Dashboard", icon: "▦", end: true },
@@ -16,7 +17,7 @@ export default function Layout() {
         <div className="brand">
           <div className="logo">SAT</div>
           <div>
-            Test Drive <small>· offline &amp; private</small>
+            Test Drive <small>· syncs across devices</small>
           </div>
         </div>
         <nav className="desktop-nav">
@@ -27,6 +28,7 @@ export default function Layout() {
           ))}
         </nav>
         <span className="spacer" style={{ flex: 1 }} />
+        <SyncStatus />
         <ThemeToggle />
         <UserMenu />
       </header>

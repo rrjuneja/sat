@@ -4,7 +4,7 @@ import type { Attempt, Session, Settings } from "../types";
 localforage.config({
   name: "sat-testdrive",
   storeName: "progress",
-  description: "Local-only SAT practice progress (never leaves this device)",
+  description: "SAT practice progress (local cache + optional cloud sync)",
 });
 
 const K = {
@@ -13,6 +13,37 @@ const K = {
   bookmarks: "bookmarks",
   settings: "settings",
 } as const;
+
+let writeHook: (() => void) | null = null;
+let applyingRemote = false;
+
+/** Called by the cloud-sync layer to push after local writes. */
+export function setWriteHook(fn: (() => void) | null): void {
+  writeHook = fn;
+}
+
+function bump(): void {
+  if (applyingRemote) return;
+  writeHook?.();
+}
+
+/** Apply a remote snapshot without triggering a cloud push. */
+export async function applyRemoteState(data: {
+  sessions: Record<string, Session>;
+  attempts: Attempt[];
+  bookmarks: string[];
+}): Promise<void> {
+  applyingRemote = true;
+  try {
+    await Promise.all([
+      localforage.setItem(K.sessions, data.sessions),
+      localforage.setItem(K.attempts, data.attempts),
+      localforage.setItem(K.bookmarks, data.bookmarks),
+    ]);
+  } finally {
+    applyingRemote = false;
+  }
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
@@ -35,12 +66,14 @@ export async function saveSession(session: Session): Promise<void> {
   const all = await getSessions();
   all[session.id] = session;
   await localforage.setItem(K.sessions, all);
+  bump();
 }
 
 export async function deleteSession(id: string): Promise<void> {
   const all = await getSessions();
   delete all[id];
   await localforage.setItem(K.sessions, all);
+  bump();
 }
 
 // ---- Attempts (append-only history) ---------------------------------------
@@ -54,6 +87,7 @@ export async function appendAttempts(entries: Attempt[]): Promise<void> {
   const all = await getAttempts();
   all.push(...entries);
   await localforage.setItem(K.attempts, all);
+  bump();
 }
 
 // ---- Bookmarks / marked-for-review (persistent) ---------------------------
@@ -68,6 +102,7 @@ export async function setBookmark(qid: string, on: boolean): Promise<string[]> {
   else set.delete(qid);
   const arr = [...set];
   await localforage.setItem(K.bookmarks, arr);
+  bump();
   return arr;
 }
 
@@ -103,6 +138,7 @@ export async function importAll(json: string): Promise<void> {
   if (data.attempts) await localforage.setItem(K.attempts, data.attempts);
   if (data.bookmarks) await localforage.setItem(K.bookmarks, data.bookmarks);
   if (data.settings) await localforage.setItem(K.settings, data.settings);
+  bump();
 }
 
 export async function resetAll(): Promise<void> {
@@ -111,4 +147,5 @@ export async function resetAll(): Promise<void> {
     localforage.removeItem(K.attempts),
     localforage.removeItem(K.bookmarks),
   ]);
+  bump();
 }
