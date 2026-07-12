@@ -13,10 +13,14 @@ const base = process.env.VITE_BASE ?? "/sat/";
 // HMR) keeps working. The app loads zero third-party resources.
 const csp = [
   "default-src 'self'",
-  "img-src 'self' data: blob:",
-  "style-src 'self' 'unsafe-inline'",
-  "script-src 'self'",
-  "connect-src 'self'",
+  // Google profile pictures come from googleusercontent; GIS button assets too.
+  "img-src 'self' data: blob: https://*.googleusercontent.com https://accounts.google.com",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+  // Google Identity Services client library.
+  "script-src 'self' https://accounts.google.com/gsi/client",
+  "connect-src 'self' https://accounts.google.com/gsi/",
+  // GIS renders its button / One Tap inside an iframe from this origin.
+  "frame-src https://accounts.google.com/gsi/",
   "font-src 'self'",
   "manifest-src 'self'",
   "worker-src 'self'",

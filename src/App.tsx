@@ -8,13 +8,23 @@ import Results from "./pages/Results";
 import Review from "./pages/Review";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Login from "./components/Login";
 import { getSettings } from "./lib/store";
 import { applyTheme } from "./lib/hooks";
+import { useAuth } from "./lib/auth";
 
 export default function App() {
+  const { enabled, user } = useAuth();
+
   useEffect(() => {
     getSettings().then((s) => applyTheme(s.theme));
   }, []);
+
+  // The login screen renders immediately (it shows its own loading state for the
+  // Google button) so users never sit on a blank gate while GIS loads.
+  if (enabled && !user) {
+    return <Login />;
+  }
 
   return (
     <Routes>

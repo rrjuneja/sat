@@ -1,4 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
+import ThemeToggle from "./ThemeToggle";
+import UserMenu from "./UserMenu";
 
 const links = [
   { to: "/", label: "Dashboard", icon: "▦", end: true },
@@ -24,6 +26,9 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+        <span className="spacer" style={{ flex: 1 }} />
+        <ThemeToggle />
+        <UserMenu />
       </header>
 
       <main className="content">

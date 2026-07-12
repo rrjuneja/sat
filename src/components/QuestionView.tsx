@@ -70,47 +70,58 @@ export default function QuestionView({
         <div className="qstem">{content.stem}</div>
       )}
 
-      {/* Answer input */}
+      {/* Answer input.
+          The question image above always contains the full, correctly-formatted
+          answer options, so we render clean A/B/C/D selectors and only fall back
+          to the (best-effort) extracted choice text when there is no image. */}
       {content.type === "mc" ? (
-        <div className="choices">
-          {LETTERS.map((letter) => {
-            const text = content.choices?.[letter];
-            const selected = item.answer === letter;
-            const eliminated = item.eliminated.includes(letter);
-            let cls = "choice";
-            if (review) {
-              if (letter === correct) cls += " correct";
-              else if (selected) cls += " incorrect";
-            } else {
-              if (selected) cls += " selected";
-              if (eliminated) cls += " eliminated";
-            }
-            return (
-              <div
-                key={letter}
-                className={cls}
-                onClick={() => !review && !eliminated && onAnswer?.(letter)}
-                role="button"
-                aria-pressed={selected}
-              >
-                <span className="key">{letter}</span>
-                <span className="body">{text || <span className="faint">(see question above)</span>}</span>
-                {!review && onToggleEliminate && (
-                  <button
-                    className="elim"
-                    title={eliminated ? "Restore option" : "Cross out option"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleEliminate(letter);
-                    }}
-                  >
-                    {eliminated ? "↺" : "✕"}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <>
+          {content.qImg && (
+            <p className="faint small" style={{ margin: "18px 0 6px" }}>
+              Select the answer choice shown in the question above:
+            </p>
+          )}
+          <div className={content.qImg ? "choices letters" : "choices"}>
+            {LETTERS.map((letter) => {
+              const text = content.qImg ? "" : content.choices?.[letter];
+              const selected = item.answer === letter;
+              const eliminated = item.eliminated.includes(letter);
+              let cls = "choice";
+              if (content.qImg) cls += " letter-only";
+              if (review) {
+                if (letter === correct) cls += " correct";
+                else if (selected) cls += " incorrect";
+              } else {
+                if (selected) cls += " selected";
+                if (eliminated) cls += " eliminated";
+              }
+              return (
+                <div
+                  key={letter}
+                  className={cls}
+                  onClick={() => !review && !eliminated && onAnswer?.(letter)}
+                  role="button"
+                  aria-pressed={selected}
+                >
+                  <span className="key">{letter}</span>
+                  {text ? <span className="body">{text}</span> : null}
+                  {!review && onToggleEliminate && (
+                    <button
+                      className="elim"
+                      title={eliminated ? "Restore option" : "Cross out option"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleEliminate(letter);
+                      }}
+                    >
+                      {eliminated ? "↺" : "✕"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       ) : (
         <div className="gridin">
           <label className="field">

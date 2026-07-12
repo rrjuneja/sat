@@ -144,10 +144,27 @@ export default function Practice() {
         </div>
 
         <div className="field">
-          <label>Number of questions: <strong>{Math.min(count, matches)}</strong> <span className="faint">/ {matches} available</span></label>
+          <label>Number of questions: <strong>{Math.min(count, matches) || 0}</strong> <span className="faint">/ {matches} available</span></label>
+          <div className="opts" style={{ marginBottom: 10 }}>
+            {[10, 20, 40, 100].map((n) => (
+              <button key={n} className={`opt ${count === n ? "on" : ""}`} disabled={n > matches} onClick={() => setCount(n)}>
+                {n}
+              </button>
+            ))}
+            <button className={`opt ${count >= matches && matches > 0 ? "on" : ""}`} disabled={!matches} onClick={() => setCount(matches)}>
+              All ({matches})
+            </button>
+          </div>
           <div className="count-input">
-            <input type="range" min={5} max={50} step={5} value={count} onChange={(e) => setCount(Number(e.target.value))} />
-            <span className="mono" style={{ width: 34, textAlign: "right" }}>{count}</span>
+            <input
+              type="number"
+              min={1}
+              max={matches || 1}
+              value={Math.min(count, matches) || ""}
+              onChange={(e) => setCount(Math.max(1, Math.min(Number(e.target.value) || 1, matches)))}
+              style={{ width: 110 }}
+            />
+            <span className="faint small">Enter any amount up to {matches}.</span>
           </div>
         </div>
 
