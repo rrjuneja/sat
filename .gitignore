@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+*.local
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Python pipeline
+.venv/
+tools/__pycache__/
+tools/_preview*.png
+tools/shots/
+
+# Raw source PDFs are too large for GitHub (>100MB) and are not needed at
+# runtime — the app ships the derived JSON + rendered images under public/.
+questionbank-export-*.pdf
+
+# Editor / OS
+.DS_Store
+.vscode/
+*.log
