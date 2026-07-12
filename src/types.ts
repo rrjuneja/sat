@@ -38,6 +38,7 @@ export interface SessionItem {
   marked: boolean;
   eliminated: string[]; // MC choices crossed out
   visited: boolean;
+  revealed: boolean; // instant-feedback: answer locked & explanation shown
   timeMs: number;
   correct: boolean | null; // graded on submit
 }
@@ -53,6 +54,7 @@ export interface SessionConfig {
   count: number;
   timed: boolean;
   durationSec: number;
+  instant: boolean; // reveal the correct answer immediately after answering
   source: "custom" | "review" | "quick";
 }
 
@@ -77,6 +79,7 @@ export interface Attempt {
   difficulty: Difficulty | "";
   correct: boolean;
   answered: boolean;
+  timeMs: number; // time spent on this question in the session
   ts: number;
 }
 

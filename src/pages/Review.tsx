@@ -24,7 +24,7 @@ export default function Review() {
     if (!saved.length) return;
     const ns = buildSession(
       index,
-      { label: "Saved for review", tests: [], domains: [], skills: [], difficulties: [], count: saved.length, timed: false, durationSec: 0, source: "review" },
+      { label: "Saved for review", tests: [], domains: [], skills: [], difficulties: [], count: saved.length, timed: false, durationSec: 0, instant: true, source: "review" },
       saved.map((m) => m.id),
     );
     await saveSession(ns);

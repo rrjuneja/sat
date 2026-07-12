@@ -9,6 +9,8 @@ export interface CategoryStat {
   answered: number; // attempts answered
   accuracy: number; // correct / answered
   coverage: number; // attempted / total
+  timeMs: number; // total time across answered questions
+  avgTimeMs: number; // time per answered question
 }
 
 /** Keep only the most recent attempt per question, so accuracy reflects current skill. */
@@ -37,12 +39,16 @@ function build(
   const attempted = new Map<string, number>();
   const correct = new Map<string, number>();
   const answered = new Map<string, number>();
+  const timeMs = new Map<string, number>();
   const metaById = new Map(index.map((q) => [q.id, q]));
   for (const [qid, a] of latest) {
     if (!metaById.has(qid)) continue;
     const k = keyOf(metaById.get(qid)!);
     attempted.set(k, (attempted.get(k) ?? 0) + 1);
-    if (a.answered) answered.set(k, (answered.get(k) ?? 0) + 1);
+    if (a.answered) {
+      answered.set(k, (answered.get(k) ?? 0) + 1);
+      timeMs.set(k, (timeMs.get(k) ?? 0) + (a.timeMs ?? 0));
+    }
     if (a.correct) correct.set(k, (correct.get(k) ?? 0) + 1);
   }
   const out: CategoryStat[] = [];
@@ -50,6 +56,7 @@ function build(
     const att = attempted.get(k) ?? 0;
     const ans = answered.get(k) ?? 0;
     const cor = correct.get(k) ?? 0;
+    const tms = timeMs.get(k) ?? 0;
     out.push({
       key: k,
       label: labels.get(k) ?? k,
@@ -59,6 +66,8 @@ function build(
       answered: ans,
       accuracy: ans ? cor / ans : 0,
       coverage: total ? att / total : 0,
+      timeMs: tms,
+      avgTimeMs: ans ? tms / ans : 0,
     });
   }
   return out.sort((a, b) => a.label.localeCompare(b.label));
@@ -137,13 +146,19 @@ export interface Totals {
   accuracy: number;
   attemptedUnique: number;
   totalQuestions: number;
+  timeMs: number; // total time across answered questions
+  avgTimeMs: number; // time per answered question
 }
 
 export function overallTotals(index: QuestionMeta[], latest: Map<string, Attempt>): Totals {
   let answered = 0;
   let correct = 0;
+  let timeMs = 0;
   for (const a of latest.values()) {
-    if (a.answered) answered++;
+    if (a.answered) {
+      answered++;
+      timeMs += a.timeMs ?? 0;
+    }
     if (a.correct) correct++;
   }
   return {
@@ -152,5 +167,42 @@ export function overallTotals(index: QuestionMeta[], latest: Map<string, Attempt
     accuracy: answered ? correct / answered : 0,
     attemptedUnique: latest.size,
     totalQuestions: index.length,
+    timeMs,
+    avgTimeMs: answered ? timeMs / answered : 0,
   };
+}
+
+// ---- Time analysis ---------------------------------------------------------
+
+/** Format a millisecond duration as m:ss (or h:mm:ss for long spans). */
+export function fmtDuration(ms: number): string {
+  const total = Math.round(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+export interface SlowQuestion {
+  meta: QuestionMeta;
+  timeMs: number;
+  correct: boolean;
+  sessionId: string;
+}
+
+/** Answered questions ranked by time spent (latest attempt per question). */
+export function slowestQuestions(
+  index: QuestionMeta[],
+  latest: Map<string, Attempt>,
+  limit = 8,
+): SlowQuestion[] {
+  const metaById = new Map(index.map((q) => [q.id, q]));
+  const rows: SlowQuestion[] = [];
+  for (const [qid, a] of latest) {
+    const meta = metaById.get(qid);
+    if (!meta || !a.answered || !(a.timeMs > 0)) continue;
+    rows.push({ meta, timeMs: a.timeMs, correct: a.correct, sessionId: a.sessionId });
+  }
+  return rows.sort((x, y) => y.timeMs - x.timeMs).slice(0, limit);
 }

@@ -12,7 +12,9 @@ interface Props {
   item: SessionItem;
   mode: "attempt" | "review";
   bookmarked: boolean;
+  instant?: boolean; // show a grid-in "Check answer" action for instant feedback
   onAnswer?: (value: string | null) => void;
+  onReveal?: () => void;
   onToggleEliminate?: (letter: string) => void;
   onToggleMark?: () => void;
   onToggleBookmark?: (on: boolean) => void;
@@ -24,7 +26,9 @@ export default function QuestionView({
   item,
   mode,
   bookmarked,
+  instant,
   onAnswer,
+  onReveal,
   onToggleEliminate,
   onToggleMark,
   onToggleBookmark,
@@ -134,8 +138,21 @@ export default function QuestionView({
               value={item.answer ?? ""}
               disabled={review}
               onChange={(e) => onAnswer?.(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && instant && !review && (item.answer ?? "").trim()) onReveal?.();
+              }}
             />
           </label>
+          {!review && instant && (
+            <button
+              className="btn primary"
+              style={{ marginTop: 10 }}
+              disabled={!(item.answer ?? "").trim()}
+              onClick={() => onReveal?.()}
+            >
+              Check answer
+            </button>
+          )}
           {review && (
             <div className="banner" style={{ marginTop: 4 }}>
               Accepted answer{content.accepted.length > 1 ? "s" : ""}:{" "}

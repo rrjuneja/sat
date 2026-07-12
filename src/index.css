@@ -316,6 +316,25 @@ button { font-family: inherit; cursor: pointer; }
 .switch input:checked + .track { background: color-mix(in srgb, var(--brand) 40%, var(--bg-elev-2)); }
 .switch input:checked + .track::after { transform: translateX(18px); background: var(--brand); }
 
+/* Bigger, clearer toggle row (with title + description) */
+.toggle-row { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elev-2); }
+.toggle-row.on { border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); background: color-mix(in srgb, var(--brand) 10%, var(--bg-elev-2)); }
+.toggle-row .switch { flex-shrink: 0; margin-top: 2px; }
+.toggle-row .switch .track { width: 48px; height: 28px; }
+.toggle-row .switch .track::after { width: 22px; height: 22px; }
+.toggle-row .switch input:checked + .track::after { transform: translateX(20px); }
+.toggle-copy { display: flex; flex-direction: column; gap: 3px; }
+.toggle-copy .t-title { font-weight: 650; }
+.time-budget { margin-top: 12px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.time-budget .big { font-size: 1.3rem; font-weight: 700; color: var(--brand); font-variant-numeric: tabular-nums; }
+
+.slow-rank { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: var(--bg-elev-2); border: 1px solid var(--border); font-size: 0.8rem; font-weight: 700; color: var(--text-dim); }
+
+/* Instant-feedback banner */
+.feedback { margin-top: 16px; padding: 12px 16px; border-radius: var(--radius-sm); font-weight: 650; border: 1px solid var(--border); }
+.feedback.good { color: var(--good); border-color: color-mix(in srgb, var(--good) 55%, var(--border)); background: color-mix(in srgb, var(--good) 12%, var(--bg-elev)); }
+.feedback.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, var(--border)); background: color-mix(in srgb, var(--bad) 12%, var(--bg-elev)); }
+
 /* ---- Misc ---------------------------------------------------------------- */
 .loader { display: grid; place-items: center; padding: 60px 0; color: var(--text-dim); gap: 14px; }
 .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--brand); animation: spin 0.8s linear infinite; }

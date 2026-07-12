@@ -6,6 +6,15 @@ const OUT = "tools/shots";
 fs.mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch();
+const AUTH_SEED = { email: "rjuneja@gmail.com", name: "Test User", picture: "", exp: Math.floor(Date.now() / 1000) + 86400 };
+const seed = (ctx) =>
+  ctx.addInitScript((s) => {
+    try {
+      localStorage.setItem("sat_auth_session", JSON.stringify(s));
+    } catch {
+      /* ignore */
+    }
+  }, AUTH_SEED);
 
 async function shot(page, name) {
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
@@ -14,9 +23,10 @@ async function shot(page, name) {
 
 // Desktop
 const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, deviceScaleFactor: 1 });
+await seed(ctx);
 const page = await ctx.newPage();
 
-await page.goto(BASE + "#/practice", { waitUntil: "networkidle" });
+await page.goto(BASE + "#/practice", { waitUntil: "domcontentloaded" });
 await page.getByText("Quick 10", { exact: false }).first().waitFor();
 await shot(page, "01-practice");
 
@@ -44,14 +54,15 @@ await page.getByRole("button", { name: /All \(/ }).click();
 await page.locator(".source-ref").first().waitFor();
 await shot(page, "03-results");
 
-await page.goto(BASE + "#/", { waitUntil: "networkidle" });
+await page.goto(BASE + "#/", { waitUntil: "domcontentloaded" });
 await page.getByText("Activity calendar").waitFor();
 await shot(page, "04-dashboard");
 
 // Mobile
 const mctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+await seed(mctx);
 const mpage = await mctx.newPage();
-await mpage.goto(BASE + "#/", { waitUntil: "networkidle" });
+await mpage.goto(BASE + "#/", { waitUntil: "domcontentloaded" });
 await mpage.getByText("Activity calendar").waitFor();
 await shot(mpage, "05-mobile-dashboard");
 

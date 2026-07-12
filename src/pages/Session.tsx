@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { QuestionContent, QuestionMeta, Session } from "../types";
 import { loadContents, loadIndex } from "../lib/data";
 import { appendAttempts, getBookmarks, getSession, saveSession, setBookmark } from "../lib/store";
-import { gradeSession } from "../lib/session";
+import { gradeSession, isCorrect } from "../lib/session";
 import QuestionView from "../components/QuestionView";
 import { Empty, Loader } from "../components/ui";
 
@@ -87,7 +87,11 @@ export default function SessionPage() {
     const t = setInterval(() => {
       setSession((prev) => {
         if (!prev || prev.status !== "active") return prev;
-        const items = prev.items.map((it, i) => (i === prev.cursor ? { ...it, timeMs: it.timeMs + 1000 } : it));
+        // Stop accruing time on a question once its answer is revealed (instant
+        // feedback) so per-question time reflects time-to-answer, not reading.
+        const items = prev.items.map((it, i) =>
+          i === prev.cursor && !it.revealed ? { ...it, timeMs: it.timeMs + 1000 } : it,
+        );
         let remainingSec = prev.remainingSec;
         if (remainingSec != null) {
           remainingSec = Math.max(0, remainingSec - 1);
@@ -122,9 +126,26 @@ export default function SessionPage() {
   if (!session) return <div className="content"><Loader label="Preparing your test drive…" /></div>;
   if (!current || !meta || !content) return <div className="content"><Loader /></div>;
 
+  const instant = !!session.config.instant;
   const goto = (i: number) => update((s) => ({ ...s, cursor: Math.max(0, Math.min(s.items.length - 1, i)) }));
   const answer = (value: string | null) =>
-    update((s) => ({ ...s, items: s.items.map((it, i) => (i === s.cursor ? { ...it, answer: value, visited: true } : it)) }));
+    update((s) => ({
+      ...s,
+      items: s.items.map((it, i) => {
+        if (i !== s.cursor) return it;
+        // For MC, selecting an option reveals feedback right away. Grid-in reveals
+        // via the explicit "Check answer" button so typing doesn't reveal early.
+        const reveal = it.revealed || (instant && content.type === "mc" && value != null && value !== "");
+        return { ...it, answer: value, visited: true, revealed: reveal };
+      }),
+    }));
+  const revealAnswer = () =>
+    update((s) => ({
+      ...s,
+      items: s.items.map((it, i) =>
+        i === s.cursor ? { ...it, revealed: (it.answer ?? "").toString().trim() !== "" } : it,
+      ),
+    }));
   const toggleEliminate = (letter: string) =>
     update((s) => ({
       ...s,
@@ -165,19 +186,33 @@ export default function SessionPage() {
           meta={meta}
           content={content}
           item={current}
-          mode="attempt"
+          mode={current.revealed ? "review" : "attempt"}
           bookmarked={bookmarks.has(current.id)}
+          instant={instant}
           onAnswer={answer}
+          onReveal={revealAnswer}
           onToggleEliminate={toggleEliminate}
           onToggleMark={toggleMark}
           onToggleBookmark={toggleBookmark}
         />
 
+        {current.revealed && (
+          <div className={`feedback qwrap ${isCorrect(content, current.answer) ? "good" : "bad"}`}>
+            {isCorrect(content, current.answer)
+              ? "✓ Correct!"
+              : content.type === "mc"
+                ? `✗ Not quite — the correct answer is ${content.correct}. See the explanation below.`
+                : "✗ Not quite — see the accepted answer and explanation below."}
+          </div>
+        )}
+
         <div className="qnav-btns qwrap">
           <button className="btn" disabled={session.cursor === 0} onClick={() => goto(session.cursor - 1)}>← Previous</button>
-          <button className="btn ghost" onClick={() => (isLast ? setShowNav(true) : goto(session.cursor + 1))}>
-            Skip →
-          </button>
+          {!current.revealed && (
+            <button className="btn ghost" onClick={() => (isLast ? setShowNav(true) : goto(session.cursor + 1))}>
+              Skip →
+            </button>
+          )}
           <span className="spacer" style={{ flex: 1 }} />
           {isLast ? (
             <button className="btn primary" onClick={() => setShowNav(true)}>Review &amp; submit</button>

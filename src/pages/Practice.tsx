@@ -4,6 +4,7 @@ import type { Difficulty, SessionConfig, TestName } from "../types";
 import { useIndex } from "../lib/hooks";
 import { buildSession, filterQuestions } from "../lib/session";
 import { saveSession } from "../lib/store";
+import { fmtDuration } from "../lib/stats";
 import { Empty, Loader } from "../components/ui";
 
 const DIFFS: Difficulty[] = ["Easy", "Medium", "Hard"];
@@ -18,6 +19,8 @@ export default function Practice() {
   const [diffs, setDiffs] = useState<Difficulty[]>([]);
   const [count, setCount] = useState(10);
   const [timed, setTimed] = useState(false);
+  const [paceSec, setPaceSec] = useState(75);
+  const [instant, setInstant] = useState(true);
 
   const allTests = useMemo<TestName[]>(
     () => [...new Set((index ?? []).map((q) => q.test))] as TestName[],
@@ -42,11 +45,13 @@ export default function Practice() {
     difficulties: diffs,
     count,
     timed,
-    durationSec: count * 75,
+    durationSec: count * paceSec,
+    instant,
     source: "custom",
   };
 
   const matches = useMemo(() => (index ? filterQuestions(index, config).length : 0), [index, config]);
+  const effCount = Math.min(count, matches) || 0;
 
   if (loading) return <Loader label="Loading question bank…" />;
   if (error) return <Empty icon="⚠" title="Couldn’t load questions">{error}</Empty>;
@@ -56,7 +61,7 @@ export default function Practice() {
     set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
   const start = async () => {
-    const session = buildSession(index, { ...config, count: Math.min(count, matches) });
+    const session = buildSession(index, { ...config, count: effCount, durationSec: effCount * paceSec });
     if (!session.items.length) return;
     await saveSession(session);
     navigate(`/session/${session.id}`);
@@ -169,11 +174,55 @@ export default function Practice() {
         </div>
 
         <div className="field">
-          <label className="switch">
-            <input type="checkbox" checked={timed} onChange={(e) => setTimed(e.target.checked)} />
-            <span className="track" />
-            <span>Timed mode {timed && <span className="faint">· {Math.round((count * 75) / 60)} min</span>}</span>
+          <label>Feedback</label>
+          <label className={`toggle-row ${instant ? "on" : ""}`}>
+            <span className="switch">
+              <input type="checkbox" checked={instant} onChange={(e) => setInstant(e.target.checked)} />
+              <span className="track" />
+            </span>
+            <span className="toggle-copy">
+              <span className="t-title">Instant feedback · {instant ? "on" : "off"}</span>
+              <span className="faint small">
+                Reveal the correct answer and explanation right after you answer each question. Turn off
+                for exam-style practice, where you answer everything first and review at the end.
+              </span>
+            </span>
           </label>
+        </div>
+
+        <div className="field">
+          <label>Timing</label>
+          <label className={`toggle-row ${timed ? "on" : ""}`}>
+            <span className="switch">
+              <input type="checkbox" checked={timed} onChange={(e) => setTimed(e.target.checked)} />
+              <span className="track" />
+            </span>
+            <span className="toggle-copy">
+              <span className="t-title">Timed mode · {timed ? "on" : "off"}</span>
+              <span className="faint small">
+                Shows a countdown while you work. When it reaches 0:00 the test auto-submits and any
+                unanswered questions are marked incorrect. Leave off to practice at your own pace.
+              </span>
+            </span>
+          </label>
+
+          {timed && (
+            <>
+              <div className="opts" style={{ marginTop: 12, alignItems: "center" }}>
+                <span className="faint small" style={{ marginRight: 4 }}>Pace per question:</span>
+                {[60, 75, 90].map((p) => (
+                  <button key={p} className={`opt ${paceSec === p ? "on" : ""}`} onClick={() => setPaceSec(p)}>
+                    {p}s
+                  </button>
+                ))}
+              </div>
+              <div className="time-budget">
+                <span className="faint small">Total time budget:</span>
+                <span className="big">{fmtDuration(effCount * paceSec * 1000)}</span>
+                <span className="faint small">for {effCount} question{effCount === 1 ? "" : "s"} ({paceSec}s each)</span>
+              </div>
+            </>
+          )}
         </div>
 
         <button className="btn primary lg block" disabled={!matches} onClick={start}>

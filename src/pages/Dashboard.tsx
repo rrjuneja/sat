@@ -6,8 +6,10 @@ import { getAttempts, getSessions } from "../lib/store";
 import {
   activityByDay,
   currentStreak,
+  fmtDuration,
   latestPerQuestion,
   overallTotals,
+  slowestQuestions,
   statsByDifficulty,
   statsByDomain,
   statsByTest,
@@ -30,6 +32,7 @@ function CategoryList({ stats }: { stats: CategoryStat[] }) {
           <ProgressBar value={s.answered ? s.accuracy : 0} tone={s.answered ? accuracyClass(s.accuracy) : undefined} />
           <div className="row small faint" style={{ marginTop: 6, gap: 12 }}>
             <span>{s.correct}/{s.answered || 0} correct</span>
+            {s.answered > 0 && <span title="Average time per answered question">· ⏱ {fmtDuration(s.avgTimeMs)}/q</span>}
             <span className="spacer" style={{ flex: 1 }} />
             <span>{s.attempted}/{s.total} attempted</span>
           </div>
@@ -62,6 +65,7 @@ export default function Dashboard() {
   const byTest = statsByTest(index, latest);
   const byDomain = statsByDomain(index, latest, domainTest === "all" ? undefined : domainTest);
   const byDiff = statsByDifficulty(index, latest);
+  const slowest = slowestQuestions(index, latest, 8);
   const recent = Object.values(sessions)
     .filter((s) => s.status === "completed")
     .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))
@@ -93,7 +97,7 @@ export default function Dashboard() {
           <div className="stat"><span className="label">Overall accuracy</span><span className="value" style={{ fontSize: "1.2rem" }}>{totals.correct}/{totals.answered}</span></div>
         </div>
         <div className="card stat"><span className="value">{totals.answered.toLocaleString()}</span><span className="label">Questions answered</span></div>
-        <div className="card stat"><span className="value">{totals.attemptedUnique.toLocaleString()}</span><span className="label">Unique attempted</span></div>
+        <div className="card stat"><span className="value">⏱ {totals.answered ? fmtDuration(totals.avgTimeMs) : "—"}</span><span className="label">Avg time / question</span></div>
         <div className="card stat"><span className="value">🔥 {streak}</span><span className="label">Day streak</span></div>
       </div>
 
@@ -136,6 +140,36 @@ export default function Dashboard() {
       {/* By difficulty */}
       <div className="section-title"><h2>By difficulty</h2></div>
       <div className="card"><CategoryList stats={byDiff} /></div>
+
+      {/* Where your time goes */}
+      {slowest.length > 0 && (
+        <>
+          <div className="section-title"><h2>Where your time goes</h2></div>
+          <p className="muted small" style={{ marginTop: -4 }}>
+            The questions you spent the longest on (most recent attempt). Tap to revisit the session.
+          </p>
+          <div className="card">
+            <ul className="clean">
+              {slowest.map((q, i) => (
+                <li key={q.meta.id} className="cat">
+                  <Link to={`/results/${q.sessionId}`} className="row" style={{ color: "inherit", textDecoration: "none", gap: 12, alignItems: "center" }}>
+                    <span className="slow-rank">{i + 1}</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>{q.meta.domain} <span className="faint">· {q.meta.skill}</span></div>
+                      <div className="small faint">
+                        {q.meta.test === "Math" ? "Math" : "R&W"}
+                        {q.meta.difficulty ? ` · ${q.meta.difficulty}` : ""} · {q.meta.pdf} p.{q.meta.page}
+                      </div>
+                    </div>
+                    <span className={`chip ${q.correct ? "easy" : "hard"}`}>{q.correct ? "Correct" : "Incorrect"}</span>
+                    <span className="chip" title="Time spent">⏱ {fmtDuration(q.timeMs)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
 
       {/* Recent sessions */}
       <div className="section-title"><h2>Recent sessions</h2></div>

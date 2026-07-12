@@ -49,6 +49,7 @@ export function buildSession(index: QuestionMeta[], config: SessionConfig, ids?:
     marked: false,
     eliminated: [],
     visited: false,
+    revealed: false,
     timeMs: 0,
     correct: null,
   }));
@@ -118,6 +119,7 @@ export function gradeSession(
       difficulty: m.difficulty,
       correct: it.correct === true,
       answered: it.answer != null && it.answer !== "",
+      timeMs: it.timeMs,
       ts: now,
     };
   });

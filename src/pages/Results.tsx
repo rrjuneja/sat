@@ -4,6 +4,7 @@ import type { QuestionContent, QuestionMeta, Session } from "../types";
 import { loadContents, loadIndex } from "../lib/data";
 import { getBookmarks, getSession, saveSession, setBookmark } from "../lib/store";
 import { buildSession, sessionScore } from "../lib/session";
+import { fmtDuration } from "../lib/stats";
 import QuestionView from "../components/QuestionView";
 import { Empty, Loader, Ring } from "../components/ui";
 
@@ -50,7 +51,11 @@ export default function Results() {
   const marked = session.items.filter((it) => it.marked);
   const filtered = filter === "all" ? session.items : filter === "incorrect" ? incorrect : marked;
   const acc = score.total ? score.correct / score.total : 0;
-  const durationMin = session.completedAt ? Math.round((session.completedAt - session.startedAt) / 60000) : 0;
+  const totalTimeMs = session.items.reduce((sum, it) => sum + (it.timeMs ?? 0), 0);
+  const answeredItems = session.items.filter((it) => it.answer != null && it.answer !== "");
+  const avgTimeMs = answeredItems.length
+    ? answeredItems.reduce((s, it) => s + (it.timeMs ?? 0), 0) / answeredItems.length
+    : 0;
 
   const index = [...metaById.values()];
 
@@ -75,11 +80,12 @@ export default function Results() {
       <div className="card">
         <div className="row wrap" style={{ gap: 24, alignItems: "center" }}>
           <Ring value={acc} size={124} label={`${Math.round(acc * 100)}%`} sub="score" />
-          <div className="grid cols-2" style={{ flex: 1, minWidth: 220 }}>
+          <div className="grid cols-3" style={{ flex: 1, minWidth: 240 }}>
             <div className="stat"><span className="value">{score.correct}/{score.total}</span><span className="label">Correct</span></div>
             <div className="stat"><span className="value">{score.answered}</span><span className="label">Answered</span></div>
             <div className="stat"><span className="value">{incorrect.length}</span><span className="label">Incorrect / skipped</span></div>
-            <div className="stat"><span className="value">{durationMin}m</span><span className="label">Time taken</span></div>
+            <div className="stat"><span className="value">{fmtDuration(totalTimeMs)}</span><span className="label">Time on questions</span></div>
+            <div className="stat"><span className="value">{fmtDuration(avgTimeMs)}</span><span className="label">Avg / question</span></div>
           </div>
         </div>
         <div className="qnav-btns" style={{ marginTop: 4 }}>
@@ -114,6 +120,7 @@ export default function Results() {
               <div className="row" style={{ marginBottom: 4 }}>
                 <span className="tag">Review #{n + 1}</span>
                 <span className="spacer" style={{ flex: 1 }} />
+                {it.timeMs > 0 && <span className="chip" title="Time spent on this question">⏱ {fmtDuration(it.timeMs)}</span>}
                 <span className={`chip ${it.correct ? "easy" : "hard"}`}>{it.correct ? "Correct" : it.answer ? "Incorrect" : "Skipped"}</span>
               </div>
               <QuestionView
