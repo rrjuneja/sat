@@ -1,5 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signOut as fbSignOut } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithCredential,
+  signInWithPopup,
+  signOut as fbSignOut,
+  type User,
+} from "firebase/auth";
 import { AUTH_ENABLED, GOOGLE_CLIENT_ID, SYNC_ENABLED, isAllowedEmail } from "../config";
 import { getFirebaseAuth } from "./firebase";
 import { setWriteHook } from "./store";
@@ -18,6 +25,7 @@ interface AuthState {
   user: AuthUser | null;
   error: string | null;
   renderButton: (el: HTMLElement) => void;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => void;
 }
 
@@ -66,6 +74,17 @@ function validate(claims: Record<string, any> | null): AuthUser | { error: strin
   };
 }
 
+function fbUserToAuthUser(fb: User): AuthUser | null {
+  const email = fb.email?.toLowerCase();
+  if (!email || !isAllowedEmail(email)) return null;
+  return {
+    email,
+    name: fb.displayName ?? email,
+    picture: fb.photoURL ?? "",
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  };
+}
+
 function loadGis(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (window.google?.accounts?.id) return resolve();
@@ -101,17 +120,32 @@ function restoreSession(): AuthUser | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Restore a still-valid session synchronously so returning users skip the gate.
   const [user, setUser] = useState<AuthUser | null>(restoreSession);
   const [ready, setReady] = useState(!AUTH_ENABLED);
   const [error, setError] = useState<string | null>(null);
   const initialized = useRef(false);
-  const syncPrompted = useRef(false);
 
   const persist = (u: AuthUser | null) => {
     if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
     else localStorage.removeItem(STORAGE_KEY);
   };
+
+  const signInWithGoogle = useCallback(async () => {
+    if (!SYNC_ENABLED) return;
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setError("Cloud sync is not configured.");
+      return;
+    }
+    setError(null);
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return;
+      setError(String((e as Error)?.message ?? e));
+    }
+  }, []);
 
   const handleCredential = useCallback((response: { credential?: string }) => {
     const idToken = response.credential ?? "";
@@ -129,8 +163,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Cloud sync: Firebase Auth is the source of truth for sign-in + Firestore access.
   useEffect(() => {
-    if (!AUTH_ENABLED || initialized.current) return;
+    if (!SYNC_ENABLED) return;
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setReady(true);
+      return;
+    }
+    return onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        const u = fbUserToAuthUser(fbUser);
+        if (!u) {
+          setError(`${fbUser.email ?? "This account"} is not authorized.`);
+          void fbSignOut(auth);
+          setUser(null);
+          persist(null);
+          setWriteHook(null);
+          stopSync();
+          setReady(true);
+          return;
+        }
+        setError(null);
+        setUser(u);
+        persist(u);
+        setWriteHook(() => scheduleSyncPush(u.email));
+        startSync(u.email);
+      } else {
+        setWriteHook(null);
+        stopSync();
+        // Keep a restored GIS session so the app stays usable; sync chip prompts to connect.
+      }
+      setReady(true);
+    });
+  }, []);
+
+  // GIS sign-in (local-only mode when cloud sync is off).
+  useEffect(() => {
+    if (SYNC_ENABLED || !AUTH_ENABLED || initialized.current) return;
     initialized.current = true;
 
     loadGis()
@@ -149,30 +219,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setReady(true);
       });
   }, [handleCredential]);
-
-  // Keep Firestore sync tied to Firebase Auth (persists across reloads).
-  useEffect(() => {
-    if (!SYNC_ENABLED || !ready) return;
-    const auth = getFirebaseAuth();
-    if (!auth) return;
-    return onAuthStateChanged(auth, (fbUser) => {
-      const email = fbUser?.email?.toLowerCase() ?? null;
-      if (email && isAllowedEmail(email)) {
-        syncPrompted.current = false;
-        setWriteHook(() => scheduleSyncPush(email));
-        startSync(email);
-      } else {
-        setWriteHook(null);
-        stopSync();
-        // GIS session restored from localStorage but Firebase not linked yet —
-        // prompt once for a fresh ID token (sign-out + sign-in also works).
-        if (user && !syncPrompted.current && window.google?.accounts?.id?.prompt) {
-          syncPrompted.current = true;
-          window.google.accounts.id.prompt();
-        }
-      }
-    });
-  }, [ready, user]);
 
   const renderButton = useCallback((el: HTMLElement) => {
     if (!window.google?.accounts?.id) return;
@@ -199,7 +245,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ enabled: AUTH_ENABLED, ready, user, error, renderButton, signOut }}>
+    <AuthContext.Provider
+      value={{ enabled: AUTH_ENABLED, ready, user, error, renderButton, signInWithGoogle, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -216,7 +264,6 @@ async function linkFirebase(idToken: string): Promise<void> {
   if (!auth) return;
   try {
     await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
-    // onAuthStateChanged wires cloud sync once Firebase Auth is ready.
   } catch (e) {
     console.warn("Firebase sign-in failed — cloud sync unavailable.", e);
   }

@@ -12,24 +12,42 @@ const LABEL: Record<SyncStatus, string> = {
 };
 
 export default function SyncStatus() {
-  const { user } = useAuth();
+  const { user, signInWithGoogle } = useAuth();
   const [status, setStatus] = useState<SyncStatus>(getSyncStatus());
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => onSyncStatus(setStatus), []);
 
-  if (!SYNC_ENABLED) return null;
-
-  // Logged out — nothing to show (login gate is up).
-  if (!user) return null;
+  if (!SYNC_ENABLED || !user) return null;
 
   const icon = status === "synced" ? "☁" : status === "error" ? "⚠" : "↻";
-  const hint =
-    status === "off"
-      ? "Sign out and sign back in to connect cloud sync"
-      : "Cloud progress sync across your devices";
+  const needsConnect = status === "off" || status === "error";
+
+  const connect = async () => {
+    setBusy(true);
+    try {
+      await signInWithGoogle();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (needsConnect) {
+    return (
+      <button
+        type="button"
+        className={`sync-chip ${status === "error" ? "error" : "connecting"}`}
+        title="Connect cloud sync across your devices"
+        disabled={busy}
+        onClick={() => void connect()}
+      >
+        {busy ? "↻ Connecting…" : `${icon} ${LABEL[status]} — tap to connect`}
+      </button>
+    );
+  }
 
   return (
-    <span className={`sync-chip ${status === "off" ? "error" : status}`} title={hint}>
+    <span className={`sync-chip ${status}`} title="Cloud progress sync across your devices">
       {icon} {LABEL[status]}
     </span>
   );

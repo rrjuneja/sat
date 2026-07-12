@@ -170,6 +170,9 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text-dim); border: 1px solid var(--border); background: var(--bg-elev-2);
   margin-right: 8px;
 }
+button.sync-chip { cursor: pointer; font-family: inherit; }
+button.sync-chip:disabled { opacity: 0.7; cursor: wait; }
+button.sync-chip:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
 .sync-chip.synced { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--border)); }
 .sync-chip.connecting, .sync-chip.syncing { color: var(--brand); }
 .sync-chip.error { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); }
