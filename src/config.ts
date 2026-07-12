@@ -4,7 +4,7 @@
 //
 // While this is empty, sign-in is disabled and the app opens directly (useful for
 // local development before the OAuth client exists).
-const CONFIGURED_CLIENT_ID = "470039515525-9rscfuo8lq0sbfd4rp3dc0itsef2mekd.apps.googleusercontent.com";
+const CONFIGURED_CLIENT_ID = "228407528342-mquban6cpidjgra3qnh0tdk3uf0rq8ma.apps.googleusercontent.com";
 
 export const GOOGLE_CLIENT_ID = (
   (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ||
