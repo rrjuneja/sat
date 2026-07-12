@@ -1,13 +1,12 @@
 import { useEffect, useRef } from "react";
-import { SYNC_ENABLED } from "../config";
 import { useAuth } from "../lib/auth";
 
 export default function Login() {
-  const { ready, error, renderButton, signInWithGoogle } = useAuth();
+  const { ready, error, renderButton } = useAuth();
   const btnRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!SYNC_ENABLED && ready && btnRef.current) renderButton(btnRef.current);
+    if (ready && btnRef.current) renderButton(btnRef.current);
   }, [ready, renderButton]);
 
   return (
@@ -24,14 +23,8 @@ export default function Login() {
           This app is restricted to approved accounts. Please sign in with Google.
         </p>
 
-        {SYNC_ENABLED ? (
-          <button className="btn primary block" style={{ marginTop: 8 }} disabled={!ready} onClick={() => void signInWithGoogle()}>
-            Sign in with Google
-          </button>
-        ) : (
-          <div className="login-btn-wrap" ref={btnRef} />
-        )}
-        {!ready && <p className="faint center small">Loading sign-in…</p>}
+        <div className="login-btn-wrap" ref={btnRef} />
+        {!ready && <p className="faint center small">Loading Google sign-in…</p>}
 
         {error && (
           <div className="banner warn" style={{ marginTop: 16 }}>
