@@ -64,6 +64,13 @@ export default function SessionPage() {
     [user?.email, metaById, contents],
   );
 
+  const maybeLogReveal = useCallback(
+    (s: Session, item: SessionItem) => {
+      if (item.revealed) recordQuestion(s, item, "reveal");
+    },
+    [recordQuestion],
+  );
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -166,16 +173,20 @@ export default function SessionPage() {
 
   if (error) return <div className="content"><Empty icon="⚠" title="Can’t open this test">{error} <div style={{ marginTop: 16 }}><button className="btn" onClick={() => navigate("/practice")}>Back to Practice</button></div></Empty></div>;
   if (!session) return <div className="content"><Loader label="Preparing your test drive…" /></div>;
-  if (!current || !meta || !content) return <div className="content"><Loader /></div>;
+  if (!current || !meta || !content) {
+    return (
+      <div className="content">
+        <Empty icon="⚠" title="Couldn’t load this question">
+          The question data didn’t load. Try exiting and starting a new session.
+          <div style={{ marginTop: 16 }}>
+            <button className="btn" onClick={() => navigate("/practice")}>Back to Practice</button>
+          </div>
+        </Empty>
+      </div>
+    );
+  }
 
   const instant = !!session.config.instant;
-
-  const maybeLogReveal = useCallback(
-    (s: Session, item: SessionItem) => {
-      if (item.revealed) recordQuestion(s, item, "reveal");
-    },
-    [recordQuestion],
-  );
 
   const goto = (i: number) => update((s) => ({ ...s, cursor: Math.max(0, Math.min(s.items.length - 1, i)) }));
   const answer = (value: string | null) =>
