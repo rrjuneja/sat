@@ -88,3 +88,36 @@ export interface Settings {
   defaultTimed: boolean;
   perQuestionSec: number;
 }
+
+/** Append-only audit log — every sign-in and every question attempt. */
+export type ActivityKind = "login" | "question";
+
+export interface ActivityLogin {
+  id: string;
+  kind: "login";
+  ts: number;
+  email: string;
+  name: string;
+}
+
+export interface ActivityQuestion {
+  id: string;
+  kind: "question";
+  ts: number;
+  email: string;
+  qid: string;
+  sessionId: string;
+  test: TestName;
+  domain: string;
+  skill: string;
+  difficulty: Difficulty | "";
+  answer: string | null;
+  correct: boolean;
+  answered: boolean;
+  timeMs: number;
+  /** Logged when the user checked/revealed an answer vs on final submit. */
+  source: "reveal" | "submit";
+  instant: boolean;
+}
+
+export type ActivityEntry = ActivityLogin | ActivityQuestion;

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signOut as fbSignOut, type User } from "firebase/auth";
 import { AUTH_ENABLED, GOOGLE_CLIENT_ID, SYNC_ENABLED, isAllowedEmail } from "../config";
 import { getFirebaseAuth } from "./firebase";
+import { logLogin } from "./activityLog";
 import { setWriteHook } from "./store";
 import { scheduleSyncPush, startSync, stopSync } from "./sync";
 
@@ -177,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSyncError(null);
         setUser(result);
         persist(result);
+        logLogin(result.email, result.name);
         // Link Firebase in the background — login must succeed even if this fails.
         if (SYNC_ENABLED && idToken) void linkFirebase(idToken);
       }

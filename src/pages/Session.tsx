@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { QuestionContent, QuestionMeta, Session } from "../types";
+import type { QuestionContent, QuestionMeta, Session, SessionItem } from "../types";
 import { loadContents, loadIndex } from "../lib/data";
 import { appendAttempts, getBookmarks, getSession, saveSession, setBookmark } from "../lib/store";
 import { gradeSession, isCorrect } from "../lib/session";
+import { logQuestionAttempt } from "../lib/activityLog";
+import { useAuth } from "../lib/auth";
 import QuestionView from "../components/QuestionView";
 import { Empty, Loader } from "../components/ui";
 
@@ -16,6 +18,7 @@ function fmt(sec: number): string {
 export default function SessionPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [session, setSession] = useState<Session | null>(null);
   const [contents, setContents] = useState<Map<string, QuestionContent>>(new Map());
@@ -24,6 +27,42 @@ export default function SessionPage() {
   const [showNav, setShowNav] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitting = useRef(false);
+  const loggedQuestions = useRef(new Set<string>());
+
+  const logKey = (sessionId: string, qid: string) => `${sessionId}:${qid}`;
+
+  const recordQuestion = useCallback(
+    (
+      s: Session,
+      item: SessionItem,
+      source: "reveal" | "submit",
+    ) => {
+      const email = user?.email;
+      if (!email) return;
+      const key = logKey(s.id, item.id);
+      if (loggedQuestions.current.has(key)) return;
+      const meta = metaById.get(item.id);
+      const content = contents.get(item.id);
+      if (!meta || !content) return;
+      loggedQuestions.current.add(key);
+      logQuestionAttempt({
+        email,
+        qid: item.id,
+        sessionId: s.id,
+        test: meta.test,
+        domain: meta.domain,
+        skill: meta.skill,
+        difficulty: meta.difficulty,
+        answer: item.answer,
+        correct: isCorrect(content, item.answer),
+        answered: item.answer != null && item.answer !== "",
+        timeMs: item.timeMs,
+        source,
+        instant: !!s.config.instant,
+      });
+    },
+    [user?.email, metaById, contents],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -72,6 +111,9 @@ export default function SessionPage() {
     setSession((prev) => {
       if (!prev) return prev;
       const { session: graded, attempts } = gradeSession(prev, contents, metaById);
+      for (const it of graded.items) {
+        recordQuestion(graded, it, "submit");
+      }
       void (async () => {
         await saveSession(graded);
         await appendAttempts(attempts);
@@ -79,7 +121,7 @@ export default function SessionPage() {
       })();
       return graded;
     });
-  }, [contents, metaById, navigate]);
+  }, [contents, metaById, navigate, recordQuestion]);
 
   // Timer + per-question time accumulation (1s tick while active)
   useEffect(() => {
@@ -127,25 +169,41 @@ export default function SessionPage() {
   if (!current || !meta || !content) return <div className="content"><Loader /></div>;
 
   const instant = !!session.config.instant;
+
+  const maybeLogReveal = useCallback(
+    (s: Session, item: SessionItem) => {
+      if (item.revealed) recordQuestion(s, item, "reveal");
+    },
+    [recordQuestion],
+  );
+
   const goto = (i: number) => update((s) => ({ ...s, cursor: Math.max(0, Math.min(s.items.length - 1, i)) }));
   const answer = (value: string | null) =>
-    update((s) => ({
-      ...s,
-      items: s.items.map((it, i) => {
-        if (i !== s.cursor) return it;
-        // For MC, selecting an option reveals feedback right away. Grid-in reveals
-        // via the explicit "Check answer" button so typing doesn't reveal early.
-        const reveal = it.revealed || (instant && content.type === "mc" && value != null && value !== "");
-        return { ...it, answer: value, visited: true, revealed: reveal };
-      }),
-    }));
+    update((s) => {
+      const next = {
+        ...s,
+        items: s.items.map((it, i) => {
+          if (i !== s.cursor) return it;
+          const reveal = it.revealed || (instant && content.type === "mc" && value != null && value !== "");
+          return { ...it, answer: value, visited: true, revealed: reveal };
+        }),
+      };
+      const item = next.items[next.cursor];
+      if (item.revealed) maybeLogReveal(next, item);
+      return next;
+    });
   const revealAnswer = () =>
-    update((s) => ({
-      ...s,
-      items: s.items.map((it, i) =>
-        i === s.cursor ? { ...it, revealed: (it.answer ?? "").toString().trim() !== "" } : it,
-      ),
-    }));
+    update((s) => {
+      const next = {
+        ...s,
+        items: s.items.map((it, i) =>
+          i === s.cursor ? { ...it, revealed: (it.answer ?? "").toString().trim() !== "" } : it,
+        ),
+      };
+      const item = next.items[next.cursor];
+      if (item.revealed) maybeLogReveal(next, item);
+      return next;
+    });
   const toggleEliminate = (letter: string) =>
     update((s) => ({
       ...s,

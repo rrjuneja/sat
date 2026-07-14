@@ -7,6 +7,7 @@ const links = [
   { to: "/", label: "Dashboard", icon: "▦", end: true },
   { to: "/practice", label: "Practice", icon: "✎" },
   { to: "/review", label: "Review", icon: "★" },
+  { to: "/history", label: "History", icon: "◷" },
   { to: "/settings", label: "Settings", icon: "⚙" },
 ];
 

@@ -7,6 +7,7 @@ import SessionPage from "./pages/Session";
 import Results from "./pages/Results";
 import Review from "./pages/Review";
 import Settings from "./pages/Settings";
+import History from "./pages/History";
 import NotFound from "./pages/NotFound";
 import Login from "./components/Login";
 import { getSettings } from "./lib/store";
@@ -32,6 +33,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="practice" element={<Practice />} />
         <Route path="review" element={<Review />} />
+        <Route path="history" element={<History />} />
         <Route path="settings" element={<Settings />} />
         <Route path="results/:id" element={<Results />} />
         <Route path="*" element={<NotFound />} />

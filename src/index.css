@@ -177,6 +177,13 @@ button.sync-chip:hover:not(:disabled) { border-color: var(--brand); color: var(-
 .sync-chip.connecting, .sync-chip.syncing { color: var(--brand); }
 .sync-chip.error { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); }
 
+.activity-list { margin: 0; }
+.activity-row {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.activity-row:last-child { border-bottom: none; }
+
 .tag { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); }
 
 /* ---- Stat tiles ---------------------------------------------------------- */

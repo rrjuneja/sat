@@ -12,5 +12,17 @@ service cloud.firestore {
           'reemapuri2@gmail.com'
         ];
     }
+
+    // Append-only activity audit log (logins + question attempts).
+    match /activityLog/{entryId} {
+      allow read, create: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'rjuneja@gmail.com',
+          'rohanrjuneja@gmail.com',
+          'reemapuri2@gmail.com'
+        ];
+      allow update, delete: if false;
+    }
   }
 }
