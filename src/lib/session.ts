@@ -35,13 +35,22 @@ export function filterQuestions(index: QuestionMeta[], config: SessionConfig): Q
   });
 }
 
-export function buildSession(index: QuestionMeta[], config: SessionConfig, ids?: string[]): Session {
+export function buildSession(
+  index: QuestionMeta[],
+  config: SessionConfig,
+  ids?: string[],
+  previouslyAsked?: Set<string>,
+): Session {
   let pool: QuestionMeta[];
   if (ids && ids.length) {
     const byId = new Map(index.map((q) => [q.id, q]));
     pool = ids.map((id) => byId.get(id)).filter((q): q is QuestionMeta => !!q);
   } else {
-    pool = shuffle(filterQuestions(index, config)).slice(0, config.count);
+    let filtered = filterQuestions(index, config);
+    if (config.excludePreviouslyAsked && previouslyAsked?.size) {
+      filtered = filtered.filter((q) => !previouslyAsked.has(q.id));
+    }
+    pool = shuffle(filtered).slice(0, config.count);
   }
   const items: SessionItem[] = pool.map((q) => ({
     id: q.id,

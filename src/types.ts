@@ -55,6 +55,8 @@ export interface SessionConfig {
   timed: boolean;
   durationSec: number;
   instant: boolean; // reveal the correct answer immediately after answering
+  /** When true, skip questions the user has attempted before. */
+  excludePreviouslyAsked: boolean;
   source: "custom" | "review" | "quick";
 }
 

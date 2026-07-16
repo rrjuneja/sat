@@ -169,6 +169,11 @@ export function attemptsFromActivityLog(entries: ActivityEntry[]): Attempt[] {
   }));
 }
 
+/** Question IDs the user has attempted at least once (attempts + activity log). */
+export function previouslyAskedQids(attempts: Attempt[], log: ActivityEntry[]): Set<string> {
+  return new Set(mergedLatestAttempts(attempts, log).keys());
+}
+
 /** Latest attempt per question — merges submitted attempts with activity-log reveals. */
 export function mergedLatestAttempts(attempts: Attempt[], log: ActivityEntry[]): Map<string, Attempt> {
   if (!log.length) return latestPerQuestion(attempts);

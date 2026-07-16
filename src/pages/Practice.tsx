@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Difficulty, SessionConfig, TestName } from "../types";
+import type { ActivityEntry, Attempt, Difficulty, SessionConfig, TestName } from "../types";
 import { useIndex } from "../lib/hooks";
 import { buildSession, filterQuestions } from "../lib/session";
-import { saveSession } from "../lib/store";
-import { fmtDuration } from "../lib/stats";
+import { getAttempts, saveSession } from "../lib/store";
+import { fetchActivityLog } from "../lib/activityLog";
+import { fmtDuration, previouslyAskedQids } from "../lib/stats";
 import { Empty, Loader } from "../components/ui";
 
 const DIFFS: Difficulty[] = ["Easy", "Medium", "Hard"];
@@ -21,6 +22,20 @@ export default function Practice() {
   const [timed, setTimed] = useState(false);
   const [paceSec, setPaceSec] = useState(75);
   const [instant, setInstant] = useState(true);
+  const [excludePreviouslyAsked, setExcludePreviouslyAsked] = useState(true);
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [logEntries, setLogEntries] = useState<ActivityEntry[]>([]);
+
+  const reloadProgress = useCallback(() => {
+    getAttempts().then(setAttempts);
+    fetchActivityLog().then(setLogEntries).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    reloadProgress();
+  }, [reloadProgress]);
+
+  const askedQids = useMemo(() => previouslyAskedQids(attempts, logEntries), [attempts, logEntries]);
 
   const allTests = useMemo<TestName[]>(
     () => [...new Set((index ?? []).map((q) => q.test))] as TestName[],
@@ -47,10 +62,20 @@ export default function Practice() {
     timed,
     durationSec: count * paceSec,
     instant,
+    excludePreviouslyAsked,
     source: "custom",
   };
 
-  const matches = useMemo(() => (index ? filterQuestions(index, config).length : 0), [index, config]);
+  const filteredPool = useMemo(() => {
+    if (!index) return [];
+    let pool = filterQuestions(index, config);
+    if (excludePreviouslyAsked) {
+      pool = pool.filter((q) => !askedQids.has(q.id));
+    }
+    return pool;
+  }, [index, config, excludePreviouslyAsked, askedQids]);
+
+  const matches = filteredPool.length;
   const effCount = Math.min(count, matches) || 0;
 
   if (loading) return <Loader label="Loading question bank…" />;
@@ -61,24 +86,53 @@ export default function Practice() {
     set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
   const start = async () => {
-    const session = buildSession(index, { ...config, count: effCount, durationSec: effCount * paceSec });
+    const session = buildSession(
+      index,
+      { ...config, count: effCount, durationSec: effCount * paceSec },
+      undefined,
+      askedQids,
+    );
     if (!session.items.length) return;
     await saveSession(session);
     navigate(`/session/${session.id}`);
   };
 
   const quickStart = async (cfg: Partial<SessionConfig>) => {
-    const full: SessionConfig = { ...config, ...cfg };
-    const session = buildSession(index, full);
+    const full: SessionConfig = { ...config, ...cfg, excludePreviouslyAsked };
+    const session = buildSession(index, full, undefined, askedQids);
     if (!session.items.length) return;
     await saveSession(session);
     navigate(`/session/${session.id}`);
   };
 
+  const excludedCount = excludePreviouslyAsked ? askedQids.size : 0;
+
   return (
     <div>
       <h1>Practice</h1>
       <p className="muted">Build a custom test drive, or jump straight in with a quick set.</p>
+
+      <div className="field" style={{ marginBottom: 16 }}>
+        <label className={`toggle-row ${excludePreviouslyAsked ? "on" : ""}`}>
+          <span className="switch">
+            <input
+              type="checkbox"
+              checked={excludePreviouslyAsked}
+              onChange={(e) => setExcludePreviouslyAsked(e.target.checked)}
+            />
+            <span className="track" />
+          </span>
+          <span className="toggle-copy">
+            <span className="t-title">New questions only · {excludePreviouslyAsked ? "on" : "off"}</span>
+            <span className="faint small">
+              Skip questions you&apos;ve already attempted so each session focuses on fresh material.
+              {excludePreviouslyAsked && askedQids.size > 0 && (
+                <> ({askedQids.size.toLocaleString()} question{askedQids.size === 1 ? "" : "s"} excluded from the pool.)</>
+              )}
+            </span>
+          </span>
+        </label>
+      </div>
 
       <div className="grid cols-3" style={{ marginBottom: 8 }}>
         <button className="card" style={btn} onClick={() => quickStart({ label: "Quick 10 · mixed", tests: [], domains: [], skills: [], difficulties: [], count: 10, source: "quick" })}>
@@ -149,7 +203,10 @@ export default function Practice() {
         </div>
 
         <div className="field">
-          <label>Number of questions: <strong>{Math.min(count, matches) || 0}</strong> <span className="faint">/ {matches} available</span></label>
+          <label>
+            Number of questions: <strong>{Math.min(count, matches) || 0}</strong>{" "}
+            <span className="faint">/ {matches} available{excludePreviouslyAsked && excludedCount ? " (new only)" : ""}</span>
+          </label>
           <div className="opts" style={{ marginBottom: 10 }}>
             {[10, 20, 40, 100].map((n) => (
               <button key={n} className={`opt ${count === n ? "on" : ""}`} disabled={n > matches} onClick={() => setCount(n)}>
@@ -171,6 +228,11 @@ export default function Practice() {
             />
             <span className="faint small">Enter any amount up to {matches}.</span>
           </div>
+          {excludePreviouslyAsked && !matches && filterQuestions(index, config).length > 0 && (
+            <div className="hint" style={{ marginTop: 8 }}>
+              No new questions match your filters — you&apos;ve attempted them all. Turn off &quot;New questions only&quot; to practice again.
+            </div>
+          )}
         </div>
 
         <div className="field">
