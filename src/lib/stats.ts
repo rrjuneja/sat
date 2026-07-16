@@ -1,4 +1,4 @@
-import type { ActivityEntry, Attempt, QuestionMeta, TestName } from "../types";
+import type { ActivityEntry, ActivityQuestion, Attempt, QuestionMeta, TestName } from "../types";
 
 export interface CategoryStat {
   key: string;
@@ -141,12 +141,23 @@ export function activityByDay(attempts: Attempt[]): Map<string, DayActivity> {
   return map;
 }
 
+/** One entry per question per session (keeps the latest timestamp). */
+export function dedupeQuestionEntries(entries: ActivityEntry[]): ActivityQuestion[] {
+  const map = new Map<string, ActivityQuestion>();
+  for (const e of entries) {
+    if (e.kind !== "question") continue;
+    const key = `${e.sessionId}:${e.qid}`;
+    const prev = map.get(key);
+    if (!prev || e.ts >= prev.ts) map.set(key, e);
+  }
+  return [...map.values()];
+}
+
 /** Daily totals from the activity audit log (includes instant-feedback reveals). */
 export function activityByDayFromLog(entries: ActivityEntry[]): Map<string, DayActivity> {
   const map = new Map<string, DayActivity>();
   const sessionIds = new Map<string, Set<string>>();
-  for (const e of entries) {
-    if (e.kind !== "question") continue;
+  for (const e of dedupeQuestionEntries(entries)) {
     const key = dayKey(e.ts);
     const d = map.get(key) ?? { date: key, answered: 0, correct: 0, timeMs: 0, sessions: 0 };
     d.answered += 1;

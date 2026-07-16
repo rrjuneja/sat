@@ -4,7 +4,7 @@ import type { QuestionContent, QuestionMeta, Session, SessionItem } from "../typ
 import { loadContents, loadIndex } from "../lib/data";
 import { appendAttempts, getBookmarks, getSession, saveSession, setBookmark } from "../lib/store";
 import { gradeSession, isCorrect } from "../lib/session";
-import { logQuestionAttempt } from "../lib/activityLog";
+import { logQuestionAttempt, loggedQuestionKeysForSession, questionLogKey } from "../lib/activityLog";
 import { useAuth } from "../lib/auth";
 import QuestionView from "../components/QuestionView";
 import { Empty, Loader } from "../components/ui";
@@ -29,7 +29,7 @@ export default function SessionPage() {
   const submitting = useRef(false);
   const loggedQuestions = useRef(new Set<string>());
 
-  const logKey = (sessionId: string, qid: string) => `${sessionId}:${qid}`;
+  const logKey = (sessionId: string, qid: string) => questionLogKey(sessionId, qid);
 
   const recordQuestion = useCallback(
     (
@@ -102,6 +102,14 @@ export default function SessionPage() {
       alive = false;
     };
   }, [id, navigate]);
+
+  // Prevent duplicate logs when resuming an in-progress session.
+  useEffect(() => {
+    if (!id) return;
+    loggedQuestionKeysForSession(id).then((keys) => {
+      keys.forEach((k) => loggedQuestions.current.add(k));
+    });
+  }, [id]);
 
   const update = useCallback((mut: (s: Session) => Session) => {
     setSession((prev) => {

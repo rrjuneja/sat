@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ActivityEntry } from "../types";
 import type { DayActivity } from "../lib/stats";
-import { dayKey, filterEntriesByDay, fmtDuration } from "../lib/stats";
+import { dayKey, dedupeQuestionEntries, filterEntriesByDay, fmtDuration } from "../lib/stats";
 import ActivityEntryList from "./ActivityEntryList";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -82,6 +82,10 @@ export default function ActivityCalendar({
   const dayEntries = useMemo(
     () => (selected ? filterEntriesByDay(logEntries, selected) : []),
     [logEntries, selected],
+  );
+  const uniqueDayQuestions = useMemo(
+    () => (selected ? dedupeQuestionEntries(dayEntries).length : 0),
+    [dayEntries, selected],
   );
   const hasDayHistory = dayEntries.length > 0;
 
@@ -227,7 +231,13 @@ export default function ActivityCalendar({
                 onClick={() => setHistoryOpen((v) => !v)}
                 aria-expanded={historyOpen}
               >
-                <span style={{ fontWeight: 650 }}>Activity log ({dayEntries.length})</span>
+                <span style={{ fontWeight: 650 }}>
+                  Activity log ({uniqueDayQuestions} question{uniqueDayQuestions === 1 ? "" : "s"}
+                  {dayEntries.length > uniqueDayQuestions
+                    ? ` · ${dayEntries.length} entries`
+                    : ""}
+                  )
+                </span>
                 <span className="spacer" style={{ flex: 1 }} />
                 <span className="small faint">{historyOpen ? "Hide" : "Show"}</span>
               </button>

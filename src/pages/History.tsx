@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { ActivityEntry } from "../types";
 import { fetchActivityLog, onActivityLogChanged } from "../lib/activityLog";
-import { filterEntriesByDay } from "../lib/stats";
+import { dedupeQuestionEntries, filterEntriesByDay } from "../lib/stats";
 import ActivityEntryList from "../components/ActivityEntryList";
 import { Loader, Empty } from "../components/ui";
 
@@ -45,11 +45,12 @@ export default function History() {
 
   const counts = useMemo(() => {
     const base = dateFilter && entries ? filterEntriesByDay(entries, dateFilter) : entries ?? [];
-    const c = { login: 0, question: 0 };
+    const c = { login: 0, question: 0, uniqueQuestions: 0 };
     for (const e of base) {
       if (e.kind === "login") c.login++;
       else c.question++;
     }
+    c.uniqueQuestions = dedupeQuestionEntries(base).length;
     return c;
   }, [entries, dateFilter]);
 
@@ -62,9 +63,11 @@ export default function History() {
   if (entries === null && !error) return <Loader label="Loading activity history…" />;
   if (error) return <Empty icon="⚠" title="Couldn’t load history">{error}</Empty>;
 
-  const totalForScope = dateFilter
-    ? filterEntriesByDay(entries ?? [], dateFilter).length
-    : entries?.length ?? 0;
+  const dayScope = dateFilter && entries ? filterEntriesByDay(entries, dateFilter) : [];
+  const totalForScope = dateFilter ? dayScope.length : entries?.length ?? 0;
+  const uniqueQuestionsToday = dateFilter
+    ? dedupeQuestionEntries(dayScope).length
+    : counts.uniqueQuestions;
 
   return (
     <div>
@@ -78,7 +81,11 @@ export default function History() {
       </div>
       {dateFilter ? (
         <p className="muted small" style={{ marginTop: 4 }}>
-          {fmtDayLabel(dateFilter)} · {totalForScope} event{totalForScope === 1 ? "" : "s"}
+          {fmtDayLabel(dateFilter)} · {uniqueQuestionsToday} question{uniqueQuestionsToday === 1 ? "" : "s"}
+          {counts.question > uniqueQuestionsToday
+            ? ` (${counts.question} log entries)`
+            : ""}
+          {counts.login > 0 ? ` · ${counts.login} login${counts.login === 1 ? "" : "s"}` : ""}
           {" · "}
           <button type="button" className="linkish" onClick={clearDate}>
             Show all history
@@ -95,7 +102,7 @@ export default function History() {
           [
             ["all", `All (${totalForScope})`],
             ["login", `Logins (${counts.login})`],
-            ["question", `Questions (${counts.question})`],
+            ["question", `Questions (${counts.uniqueQuestions}${counts.question > counts.uniqueQuestions ? ` · ${counts.question} entries` : ""})`],
           ] as const
         ).map(([k, label]) => (
           <button key={k} className={`opt ${filter === k ? "on" : ""}`} onClick={() => setFilter(k)}>
