@@ -9,7 +9,7 @@ import {
   calendarActivity,
   currentStreak,
   fmtDuration,
-  latestPerQuestion,
+  mergedLatestAttempts,
   overallTotals,
   slowestQuestions,
   statsByDifficulty,
@@ -68,7 +68,7 @@ export default function Dashboard() {
     };
   }, [reload]);
 
-  const latest = useMemo(() => latestPerQuestion(attempts ?? []), [attempts]);
+  const latest = useMemo(() => mergedLatestAttempts(attempts ?? [], logEntries), [attempts, logEntries]);
   const activity = useMemo(() => calendarActivity(attempts ?? [], logEntries), [attempts, logEntries]);
 
   if (loading || attempts === null) return <Loader label="Loading your progress…" />;

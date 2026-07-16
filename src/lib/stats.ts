@@ -153,6 +153,28 @@ export function dedupeQuestionEntries(entries: ActivityEntry[]): ActivityQuestio
   return [...map.values()];
 }
 
+/** Convert deduped activity-log questions into Attempt-shaped records. */
+export function attemptsFromActivityLog(entries: ActivityEntry[]): Attempt[] {
+  return dedupeQuestionEntries(entries).map((e) => ({
+    qid: e.qid,
+    sessionId: e.sessionId,
+    test: e.test,
+    domain: e.domain,
+    skill: e.skill,
+    difficulty: e.difficulty,
+    correct: e.correct,
+    answered: e.answered,
+    timeMs: e.timeMs,
+    ts: e.ts,
+  }));
+}
+
+/** Latest attempt per question — merges submitted attempts with activity-log reveals. */
+export function mergedLatestAttempts(attempts: Attempt[], log: ActivityEntry[]): Map<string, Attempt> {
+  if (!log.length) return latestPerQuestion(attempts);
+  return latestPerQuestion([...attempts, ...attemptsFromActivityLog(log)]);
+}
+
 /** Daily totals from the activity audit log (includes instant-feedback reveals). */
 export function activityByDayFromLog(entries: ActivityEntry[]): Map<string, DayActivity> {
   const map = new Map<string, DayActivity>();
