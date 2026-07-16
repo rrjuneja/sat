@@ -215,6 +215,54 @@ button.sync-chip:hover:not(:disabled) { border-color: var(--brand); color: var(-
 .heatmap .cell.l4 { background: var(--brand); }
 .heatmap-legend { display: flex; align-items: center; gap: 6px; color: var(--text-faint); font-size: 0.75rem; }
 
+/* ---- Activity calendar (month view) -------------------------------------- */
+.activity-cal-head { margin-bottom: 10px; }
+.activity-cal-summary { flex-wrap: wrap; gap: 8px; margin-bottom: 14px; justify-content: center; }
+.activity-cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+}
+.activity-cal-wd {
+  text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--text-faint);
+  padding: 4px 0 6px; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.activity-cal-day {
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  min-height: 72px; padding: 6px 5px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg-elev-2);
+  color: var(--text); font: inherit; text-align: left;
+  transition: border-color 0.12s, background 0.12s;
+}
+.activity-cal-day.empty { border: none; background: transparent; min-height: 0; padding: 0; }
+.activity-cal-day:not(.empty):not(:disabled):hover { border-color: var(--brand); }
+.activity-cal-day:disabled { opacity: 0.35; cursor: default; }
+.activity-cal-day.today { box-shadow: inset 0 0 0 2px var(--brand); }
+.activity-cal-day.selected { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--bg-elev-2)); }
+.activity-cal-day .day-num { font-weight: 750; font-size: 0.88rem; line-height: 1; }
+.activity-cal-day .day-stats {
+  display: flex; flex-direction: column; gap: 1px;
+  font-size: 0.62rem; line-height: 1.25; color: var(--text-dim); font-variant-numeric: tabular-nums;
+}
+.activity-cal-day.l1 { background: color-mix(in srgb, var(--brand) 14%, var(--bg-elev-2)); }
+.activity-cal-day.l2 { background: color-mix(in srgb, var(--brand) 28%, var(--bg-elev-2)); }
+.activity-cal-day.l3 { background: color-mix(in srgb, var(--brand) 42%, var(--bg-elev-2)); }
+.activity-cal-day.l4 { background: color-mix(in srgb, var(--brand) 56%, var(--bg-elev-2)); }
+.activity-cal-day.selected.l1,
+.activity-cal-day.selected.l2,
+.activity-cal-day.selected.l3,
+.activity-cal-day.selected.l4 {
+  background: color-mix(in srgb, var(--brand) 18%, var(--bg-elev-2));
+}
+.activity-cal-detail {
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
+}
+.stat.compact { padding: 0; }
+.stat.compact .value { font-size: 1.15rem; }
+.stat.compact .label { font-size: 0.75rem; }
+@media (max-width: 640px) {
+  .activity-cal-day { min-height: 58px; padding: 5px 4px; }
+  .activity-cal-day .day-stats { font-size: 0.58rem; }
+}
+
 /* ---- Question / session -------------------------------------------------- */
 .session-bar {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px;

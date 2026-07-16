@@ -1,5 +1,5 @@
 import type { DayActivity } from "../lib/stats";
-import { dayKey } from "../lib/stats";
+import { dayKey, fmtDuration } from "../lib/stats";
 
 function level(n: number): string {
   if (n <= 0) return "";
@@ -54,7 +54,9 @@ export default function CalendarHeatmap({
               const future = date > today;
               const title = future
                 ? ""
-                : `${key}: ${a ? `${a.answered} answered, ${a.correct} correct` : "no activity"}`;
+                : a
+                  ? `${key}: ${a.sessions} session(s), ${a.answered} question(s), ${fmtDuration(a.timeMs)}`
+                  : `${key}: no activity`;
               return (
                 <div
                   key={key}

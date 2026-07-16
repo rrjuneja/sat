@@ -112,18 +112,31 @@ export function dayKey(ts: number): string {
 
 export interface DayActivity {
   date: string;
+  /** Questions attempted (graded) that day. */
   answered: number;
   correct: number;
+  /** Total time spent on questions that day. */
+  timeMs: number;
+  /** Distinct practice sessions with activity that day. */
+  sessions: number;
 }
 
 export function activityByDay(attempts: Attempt[]): Map<string, DayActivity> {
   const map = new Map<string, DayActivity>();
+  const sessionIds = new Map<string, Set<string>>();
   for (const a of attempts) {
     const key = dayKey(a.ts);
-    const d = map.get(key) ?? { date: key, answered: 0, correct: 0 };
+    const d = map.get(key) ?? { date: key, answered: 0, correct: 0, timeMs: 0, sessions: 0 };
     d.answered += 1;
     if (a.correct) d.correct += 1;
+    d.timeMs += a.timeMs ?? 0;
+    if (!sessionIds.has(key)) sessionIds.set(key, new Set());
+    sessionIds.get(key)!.add(a.sessionId);
     map.set(key, d);
+  }
+  for (const [key, ids] of sessionIds) {
+    const d = map.get(key);
+    if (d) d.sessions = ids.size;
   }
   return map;
 }

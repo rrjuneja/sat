@@ -18,6 +18,7 @@ import {
 } from "../lib/stats";
 import { ProgressBar, Ring, Loader, Empty, accuracyClass } from "../components/ui";
 import CalendarHeatmap from "../components/CalendarHeatmap";
+import ActivityCalendar from "../components/ActivityCalendar";
 
 function CategoryList({ stats }: { stats: CategoryStat[] }) {
   return (
@@ -108,7 +109,11 @@ export default function Dashboard() {
 
       {/* Calendar */}
       <div className="section-title"><h2>Activity calendar</h2></div>
+      <div className="card" style={{ marginBottom: 12 }}>
+        <ActivityCalendar activity={activity} />
+      </div>
       <div className="card">
+        <div className="small faint" style={{ marginBottom: 10 }}>Year at a glance</div>
         <CalendarHeatmap activity={activity} weeks={26} />
       </div>
 
