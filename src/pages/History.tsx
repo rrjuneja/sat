@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { ActivityEntry } from "../types";
 import { fetchActivityLog, onActivityLogChanged } from "../lib/activityLog";
-import { fmtDuration } from "../lib/stats";
+import { filterEntriesByDay } from "../lib/stats";
+import ActivityEntryList from "../components/ActivityEntryList";
 import { Loader, Empty } from "../components/ui";
 
 type Filter = "all" | "login" | "question";
 
-function fmtWhen(ts: number): string {
-  return new Date(ts).toLocaleString(undefined, {
-    month: "short",
+function fmtDayLabel(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
     day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+    year: "numeric",
   });
 }
 
 export default function History() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dateFilter = searchParams.get("date");
   const [entries, setEntries] = useState<ActivityEntry[] | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [error, setError] = useState<string | null>(null);
@@ -32,35 +36,64 @@ export default function History() {
     return onActivityLogChanged(reload);
   }, [reload]);
 
-  const filtered = useMemo(() => {
+  const scoped = useMemo(() => {
     if (!entries) return [];
-    if (filter === "all") return entries;
-    return entries.filter((e) => e.kind === filter);
-  }, [entries, filter]);
+    const base = dateFilter ? filterEntriesByDay(entries, dateFilter) : entries;
+    if (filter === "all") return base;
+    return base.filter((e) => e.kind === filter);
+  }, [entries, filter, dateFilter]);
 
   const counts = useMemo(() => {
+    const base = dateFilter && entries ? filterEntriesByDay(entries, dateFilter) : entries ?? [];
     const c = { login: 0, question: 0 };
-    for (const e of entries ?? []) {
+    for (const e of base) {
       if (e.kind === "login") c.login++;
       else c.question++;
     }
     return c;
-  }, [entries]);
+  }, [entries, dateFilter]);
+
+  const clearDate = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("date");
+    setSearchParams(next, { replace: true });
+  };
 
   if (entries === null && !error) return <Loader label="Loading activity history…" />;
   if (error) return <Empty icon="⚠" title="Couldn’t load history">{error}</Empty>;
 
+  const totalForScope = dateFilter
+    ? filterEntriesByDay(entries ?? [], dateFilter).length
+    : entries?.length ?? 0;
+
   return (
     <div>
-      <h1>Activity history</h1>
-      <p className="muted small" style={{ marginTop: -4 }}>
-        Every sign-in and every question attempt is logged here (shared across devices when cloud sync is on).
-      </p>
+      <div className="row" style={{ marginBottom: 4 }}>
+        <h1 style={{ margin: 0 }}>{dateFilter ? "Day activity" : "Activity history"}</h1>
+        {dateFilter && (
+          <Link className="btn sm ghost" to="/" style={{ marginLeft: 12 }}>
+            ← Dashboard
+          </Link>
+        )}
+      </div>
+      {dateFilter ? (
+        <p className="muted small" style={{ marginTop: 4 }}>
+          {fmtDayLabel(dateFilter)} · {totalForScope} event{totalForScope === 1 ? "" : "s"}
+          {" · "}
+          <button type="button" className="linkish" onClick={clearDate}>
+            Show all history
+          </button>
+        </p>
+      ) : (
+        <p className="muted small" style={{ marginTop: -4 }}>
+          Every sign-in and every question attempt is logged here (shared across devices when cloud sync is on).
+        </p>
+      )}
 
       <div className="opts" style={{ margin: "16px 0" }}>
         {(
           [
-            ["all", `All (${entries?.length ?? 0})`],
+            ["all", `All (${totalForScope})`],
             ["login", `Logins (${counts.login})`],
             ["question", `Questions (${counts.question})`],
           ] as const
@@ -75,56 +108,15 @@ export default function History() {
         </button>
       </div>
 
-      {!filtered.length ? (
-        <Empty icon="📋" title="No activity yet">
-          Sign in and practice — attempts will appear here.
+      {!scoped.length ? (
+        <Empty icon="📋" title={dateFilter ? "No activity this day" : "No activity yet"}>
+          {dateFilter
+            ? "Nothing was logged on this date. Pick another day on the dashboard calendar."
+            : "Sign in and practice — attempts will appear here."}
         </Empty>
       ) : (
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <ul className="clean activity-list">
-            {filtered.map((e) => (
-              <li key={e.id} className="activity-row">
-                {e.kind === "login" ? (
-                  <div className="row" style={{ gap: 12, alignItems: "flex-start" }}>
-                    <span className="chip brand">Login</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 650 }}>{e.name}</div>
-                      <div className="small faint">{e.email}</div>
-                    </div>
-                    <span className="small faint">{fmtWhen(e.ts)}</span>
-                  </div>
-                ) : (
-                  <div className="row" style={{ gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-                    <span className={`chip ${e.correct ? "easy" : e.answered ? "hard" : ""}`}>
-                      {e.correct ? "Correct" : e.answered ? "Incorrect" : "Skipped"}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 180 }}>
-                      <div style={{ fontWeight: 650 }}>
-                        {e.domain} <span className="faint">· {e.skill}</span>
-                      </div>
-                      <div className="small faint">
-                        {e.test === "Math" ? "Math" : "R&W"}
-                        {e.difficulty ? ` · ${e.difficulty}` : ""} · {e.email}
-                      </div>
-                      {e.answered && (
-                        <div className="small mono" style={{ marginTop: 4 }}>
-                          Answer: <strong>{e.answer}</strong>
-                          {e.source === "reveal" && <span className="faint"> · instant check</span>}
-                        </div>
-                      )}
-                    </div>
-                    <div className="row small faint" style={{ gap: 8 }}>
-                      {e.timeMs > 0 && <span>⏱ {fmtDuration(e.timeMs)}</span>}
-                      <Link to={`/results/${e.sessionId}`} className="chip">
-                        Session
-                      </Link>
-                      <span>{fmtWhen(e.ts)}</span>
-                    </div>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+          <ActivityEntryList entries={scoped} />
         </div>
       )}
     </div>

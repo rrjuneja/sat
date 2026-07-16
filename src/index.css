@@ -255,6 +255,23 @@ button.sync-chip:hover:not(:disabled) { border-color: var(--brand); color: var(-
 .activity-cal-detail {
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
 }
+.activity-cal-history {
+  margin-top: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  overflow: hidden; background: var(--bg-elev);
+}
+.activity-cal-history-toggle {
+  width: 100%; padding: 12px 14px; border: none; background: transparent;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.activity-cal-history-toggle:hover { background: var(--bg-elev-2); }
+.activity-cal-history-body {
+  max-height: 360px; overflow-y: auto; border-top: 1px solid var(--border);
+}
+button.linkish {
+  border: none; background: none; padding: 0; color: var(--brand);
+  font: inherit; cursor: pointer; text-decoration: underline;
+}
+button.linkish:hover { color: color-mix(in srgb, var(--brand) 80%, var(--text)); }
 .stat.compact { padding: 0; }
 .stat.compact .value { font-size: 1.15rem; }
 .stat.compact .label { font-size: 0.75rem; }

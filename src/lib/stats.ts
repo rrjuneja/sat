@@ -1,4 +1,4 @@
-import type { Attempt, QuestionMeta, TestName } from "../types";
+import type { ActivityEntry, Attempt, QuestionMeta, TestName } from "../types";
 
 export interface CategoryStat {
   key: string;
@@ -139,6 +139,11 @@ export function activityByDay(attempts: Attempt[]): Map<string, DayActivity> {
     if (d) d.sessions = ids.size;
   }
   return map;
+}
+
+/** Activity log entries for a single calendar day (newest first). */
+export function filterEntriesByDay(entries: ActivityEntry[], dateKey: string): ActivityEntry[] {
+  return entries.filter((e) => dayKey(e.ts) === dateKey).sort((a, b) => b.ts - a.ts);
 }
 
 export function currentStreak(activity: Map<string, DayActivity>): number {

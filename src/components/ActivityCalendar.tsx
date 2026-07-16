@@ -1,6 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import type { ActivityEntry } from "../types";
+import { fetchActivityLog, onActivityLogChanged } from "../lib/activityLog";
 import type { DayActivity } from "../lib/stats";
-import { dayKey, fmtDuration } from "../lib/stats";
+import { dayKey, filterEntriesByDay, fmtDuration } from "../lib/stats";
+import ActivityEntryList from "./ActivityEntryList";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -40,6 +44,17 @@ export default function ActivityCalendar({
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selected, setSelected] = useState<string | null>(todayKey);
+  const [entries, setEntries] = useState<ActivityEntry[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const reloadLog = useCallback(() => {
+    fetchActivityLog().then(setEntries).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    reloadLog();
+    return onActivityLogChanged(reloadLog);
+  }, [reloadLog]);
 
   const cells = useMemo(() => {
     const first = new Date(viewYear, viewMonth, 1);
@@ -73,6 +88,16 @@ export default function ActivityCalendar({
   }, [activity, viewYear, viewMonth]);
 
   const selectedActivity = selected ? activity.get(selected) : undefined;
+  const dayEntries = useMemo(
+    () => (selected ? filterEntriesByDay(entries, selected) : []),
+    [entries, selected],
+  );
+  const hasDayHistory = dayEntries.length > 0;
+
+  const selectDay = (key: string) => {
+    setSelected(key);
+    setHistoryOpen(true);
+  };
 
   const prevMonth = () => {
     if (viewMonth === 0) {
@@ -141,10 +166,10 @@ export default function ActivityCalendar({
               type="button"
               className={`activity-cal-day ${has ? level(a!.answered) : ""} ${isSelected ? "selected" : ""} ${isToday ? "today" : ""}`}
               disabled={future}
-              onClick={() => setSelected(cell.key)}
+              onClick={() => selectDay(cell.key)}
               title={
                 has
-                  ? `${cell.key}: ${a!.sessions} session(s), ${a!.answered} question(s), ${fmtDuration(a!.timeMs)}`
+                  ? `${cell.key}: ${a!.sessions} session(s), ${a!.answered} question(s), ${fmtDuration(a!.timeMs)} — click for details`
                   : future
                     ? undefined
                     : `${cell.key}: no activity`
@@ -165,9 +190,16 @@ export default function ActivityCalendar({
 
       {selected && (
         <div className="activity-cal-detail">
-          <div className="small faint" style={{ marginBottom: 6 }}>
-            {fmtDayLabel(selected)}
+          <div className="row" style={{ marginBottom: 6, alignItems: "center" }}>
+            <div className="small faint">{fmtDayLabel(selected)}</div>
+            <span className="spacer" style={{ flex: 1 }} />
+            {hasDayHistory && (
+              <Link className="btn sm ghost" to={`/history?date=${selected}`}>
+                Open full page
+              </Link>
+            )}
           </div>
+
           {selectedActivity && selectedActivity.answered > 0 ? (
             <div className="grid cols-3" style={{ gap: 10 }}>
               <div className="stat compact">
@@ -188,10 +220,37 @@ export default function ActivityCalendar({
               No practice activity recorded this day.
             </p>
           )}
+
           {selectedActivity && selectedActivity.answered > 0 && (
             <p className="small faint" style={{ margin: "10px 0 0" }}>
               {selectedActivity.correct}/{selectedActivity.answered} correct (
               {Math.round((selectedActivity.correct / selectedActivity.answered) * 100)}%)
+            </p>
+          )}
+
+          {hasDayHistory && (
+            <div className="activity-cal-history">
+              <button
+                type="button"
+                className="activity-cal-history-toggle row"
+                onClick={() => setHistoryOpen((v) => !v)}
+                aria-expanded={historyOpen}
+              >
+                <span style={{ fontWeight: 650 }}>Activity log ({dayEntries.length})</span>
+                <span className="spacer" style={{ flex: 1 }} />
+                <span className="small faint">{historyOpen ? "Hide" : "Show"}</span>
+              </button>
+              {historyOpen && (
+                <div className="activity-cal-history-body">
+                  <ActivityEntryList entries={dayEntries} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {!hasDayHistory && selectedActivity && selectedActivity.answered > 0 && (
+            <p className="small faint" style={{ marginTop: 12 }}>
+              Detailed attempt log isn&apos;t available for this day yet. New attempts are logged automatically.
             </p>
           )}
         </div>
