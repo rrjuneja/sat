@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ActivityEntry } from "../types";
-import { fetchActivityLog, onActivityLogChanged } from "../lib/activityLog";
 import type { DayActivity } from "../lib/stats";
 import { dayKey, filterEntriesByDay, fmtDuration } from "../lib/stats";
 import ActivityEntryList from "./ActivityEntryList";
@@ -36,25 +35,17 @@ function fmtDayLabel(key: string): string {
 
 export default function ActivityCalendar({
   activity,
+  logEntries,
 }: {
   activity: Map<string, DayActivity>;
+  logEntries: ActivityEntry[];
 }) {
   const today = new Date();
   const todayKey = dayKey(today.getTime());
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selected, setSelected] = useState<string | null>(todayKey);
-  const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
-
-  const reloadLog = useCallback(() => {
-    fetchActivityLog().then(setEntries).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    reloadLog();
-    return onActivityLogChanged(reloadLog);
-  }, [reloadLog]);
 
   const cells = useMemo(() => {
     const first = new Date(viewYear, viewMonth, 1);
@@ -89,8 +80,8 @@ export default function ActivityCalendar({
 
   const selectedActivity = selected ? activity.get(selected) : undefined;
   const dayEntries = useMemo(
-    () => (selected ? filterEntriesByDay(entries, selected) : []),
-    [entries, selected],
+    () => (selected ? filterEntriesByDay(logEntries, selected) : []),
+    [logEntries, selected],
   );
   const hasDayHistory = dayEntries.length > 0;
 

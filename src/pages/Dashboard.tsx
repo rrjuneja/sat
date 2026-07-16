@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import type { Attempt, Session, TestName } from "../types";
+import type { Attempt, Session, TestName, ActivityEntry } from "../types";
 import { useIndex } from "../lib/hooks";
 import { getAttempts, getSessions } from "../lib/store";
+import { fetchActivityLog, onActivityLogChanged } from "../lib/activityLog";
 import { onDataChanged } from "../lib/sync";
 import {
-  activityByDay,
+  calendarActivity,
   currentStreak,
   fmtDuration,
   latestPerQuestion,
@@ -47,20 +48,28 @@ function CategoryList({ stats }: { stats: CategoryStat[] }) {
 export default function Dashboard() {
   const { index, loading, error } = useIndex();
   const [attempts, setAttempts] = useState<Attempt[] | null>(null);
+  const [logEntries, setLogEntries] = useState<ActivityEntry[]>([]);
   const [sessions, setSessions] = useState<Record<string, Session>>({});
   const [domainTest, setDomainTest] = useState<TestName | "all">("all");
 
-  useEffect(() => {
-    const reload = () => {
-      getAttempts().then(setAttempts);
-      getSessions().then(setSessions);
-    };
-    reload();
-    return onDataChanged(reload);
+  const reload = useCallback(() => {
+    getAttempts().then(setAttempts);
+    getSessions().then(setSessions);
+    fetchActivityLog().then(setLogEntries).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    reload();
+    const unsubData = onDataChanged(reload);
+    const unsubLog = onActivityLogChanged(reload);
+    return () => {
+      unsubData();
+      unsubLog();
+    };
+  }, [reload]);
+
   const latest = useMemo(() => latestPerQuestion(attempts ?? []), [attempts]);
-  const activity = useMemo(() => activityByDay(attempts ?? []), [attempts]);
+  const activity = useMemo(() => calendarActivity(attempts ?? [], logEntries), [attempts, logEntries]);
 
   if (loading || attempts === null) return <Loader label="Loading your progress…" />;
   if (error) return <Empty icon="⚠" title="Couldn’t load questions">{error}</Empty>;
@@ -110,7 +119,7 @@ export default function Dashboard() {
       {/* Calendar */}
       <div className="section-title"><h2>Activity calendar</h2></div>
       <div className="card" style={{ marginBottom: 12 }}>
-        <ActivityCalendar activity={activity} />
+        <ActivityCalendar activity={activity} logEntries={logEntries} />
       </div>
       <div className="card">
         <div className="small faint" style={{ marginBottom: 10 }}>Year at a glance</div>

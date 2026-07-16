@@ -141,6 +141,43 @@ export function activityByDay(attempts: Attempt[]): Map<string, DayActivity> {
   return map;
 }
 
+/** Daily totals from the activity audit log (includes instant-feedback reveals). */
+export function activityByDayFromLog(entries: ActivityEntry[]): Map<string, DayActivity> {
+  const map = new Map<string, DayActivity>();
+  const sessionIds = new Map<string, Set<string>>();
+  for (const e of entries) {
+    if (e.kind !== "question") continue;
+    const key = dayKey(e.ts);
+    const d = map.get(key) ?? { date: key, answered: 0, correct: 0, timeMs: 0, sessions: 0 };
+    d.answered += 1;
+    if (e.correct) d.correct += 1;
+    d.timeMs += e.timeMs ?? 0;
+    if (!sessionIds.has(key)) sessionIds.set(key, new Set());
+    sessionIds.get(key)!.add(e.sessionId);
+    map.set(key, d);
+  }
+  for (const [key, ids] of sessionIds) {
+    const d = map.get(key);
+    if (d) d.sessions = ids.size;
+  }
+  return map;
+}
+
+/**
+ * Calendar activity — prefer the audit log (matches History), backfill older days
+ * from submitted attempts when no log exists for that day.
+ */
+export function calendarActivity(attempts: Attempt[], log: ActivityEntry[]): Map<string, DayActivity> {
+  const fromLog = activityByDayFromLog(log);
+  const fromAttempts = activityByDay(attempts);
+  const out = new Map(fromLog);
+  for (const [key, a] of fromAttempts) {
+    const existing = out.get(key);
+    if (!existing?.answered && a.answered > 0) out.set(key, a);
+  }
+  return out;
+}
+
 /** Activity log entries for a single calendar day (newest first). */
 export function filterEntriesByDay(entries: ActivityEntry[], dateKey: string): ActivityEntry[] {
   return entries.filter((e) => dayKey(e.ts) === dateKey).sort((a, b) => b.ts - a.ts);
